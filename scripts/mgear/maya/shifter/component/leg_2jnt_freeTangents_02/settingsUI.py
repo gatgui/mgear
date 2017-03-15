@@ -23,14 +23,13 @@
 # Author:     Jeremie Passerin      geerem@hotmail.com  www.jeremiepasserin.com
 # Author:     Miquel Campos         hello@miquel-campos.com  www.miquel-campos.com
 # Date:       2016 / 10 / 10
-
 import mgear.maya.pyqt as gqt
 QtGui, QtCore, QtWidgets, wrapInstance = gqt.qt_import()
 
 class Ui_Form(object):
     def setupUi(self, Form):
         Form.setObjectName("Form")
-        Form.resize(255, 478)
+        Form.resize(255, 799)
         self.ikRefArray_groupBox = QtWidgets.QGroupBox(Form)
         self.ikRefArray_groupBox.setGeometry(QtCore.QRect(0, 130, 249, 169))
         self.ikRefArray_groupBox.setObjectName("ikRefArray_groupBox")
@@ -171,6 +170,41 @@ class Ui_Form(object):
         spacerItem1 = QtWidgets.QSpacerItem(20, 40, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding)
         self.upvRefArray_verticalLayout_2.addItem(spacerItem1)
         self.upvRefArray_horizontalLayout.addLayout(self.upvRefArray_verticalLayout_2)
+        self.pinRefArray_groupBox = QtWidgets.QGroupBox(Form)
+        self.pinRefArray_groupBox.setGeometry(QtCore.QRect(0, 477, 249, 169))
+        self.pinRefArray_groupBox.setObjectName("pinRefArray_groupBox")
+        self.layoutWidget_3 = QtWidgets.QWidget(self.pinRefArray_groupBox)
+        self.layoutWidget_3.setGeometry(QtCore.QRect(10, 20, 231, 141))
+        self.layoutWidget_3.setObjectName("layoutWidget_3")
+        self.pinRefArray_horizontalLayout = QtWidgets.QHBoxLayout(self.layoutWidget_3)
+        self.pinRefArray_horizontalLayout.setContentsMargins(0, 0, 0, 0)
+        self.pinRefArray_horizontalLayout.setObjectName("pinRefArray_horizontalLayout")
+        self.pinRefArray_verticalLayout = QtWidgets.QVBoxLayout()
+        self.pinRefArray_verticalLayout.setObjectName("pinRefArray_verticalLayout")
+        self.pinRefArray_listWidget = QtWidgets.QListWidget(self.layoutWidget_3)
+        self.pinRefArray_listWidget.setDragDropOverwriteMode(True)
+        self.pinRefArray_listWidget.setDragDropMode(QtWidgets.QAbstractItemView.InternalMove)
+        self.pinRefArray_listWidget.setDefaultDropAction(QtCore.Qt.MoveAction)
+        self.pinRefArray_listWidget.setAlternatingRowColors(True)
+        self.pinRefArray_listWidget.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+        self.pinRefArray_listWidget.setSelectionRectVisible(False)
+        self.pinRefArray_listWidget.setObjectName("pinRefArray_listWidget")
+        self.pinRefArray_verticalLayout.addWidget(self.pinRefArray_listWidget)
+        self.pinRefArray_copyRef_pushButton = QtWidgets.QPushButton(self.layoutWidget_3)
+        self.pinRefArray_copyRef_pushButton.setObjectName("pinRefArray_copyRef_pushButton")
+        self.pinRefArray_verticalLayout.addWidget(self.pinRefArray_copyRef_pushButton)
+        self.pinRefArray_horizontalLayout.addLayout(self.pinRefArray_verticalLayout)
+        self.pinRefArray_verticalLayout_2 = QtWidgets.QVBoxLayout()
+        self.pinRefArray_verticalLayout_2.setObjectName("pinRefArray_verticalLayout_2")
+        self.pinRefArrayAdd_pushButton = QtWidgets.QPushButton(self.layoutWidget_3)
+        self.pinRefArrayAdd_pushButton.setObjectName("pinRefArrayAdd_pushButton")
+        self.pinRefArray_verticalLayout_2.addWidget(self.pinRefArrayAdd_pushButton)
+        self.pinRefArrayRemove_pushButton = QtWidgets.QPushButton(self.layoutWidget_3)
+        self.pinRefArrayRemove_pushButton.setObjectName("pinRefArrayRemove_pushButton")
+        self.pinRefArray_verticalLayout_2.addWidget(self.pinRefArrayRemove_pushButton)
+        spacerItem2 = QtWidgets.QSpacerItem(20, 40, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding)
+        self.pinRefArray_verticalLayout_2.addItem(spacerItem2)
+        self.pinRefArray_horizontalLayout.addLayout(self.pinRefArray_verticalLayout_2)
 
         self.retranslateUi(Form)
         QtCore.QObject.connect(self.ikfk_slider, QtCore.SIGNAL("sliderMoved(int)"), self.ikfk_spinBox.setValue)
@@ -191,4 +225,8 @@ class Ui_Form(object):
         self.upvRefArray_copyRef_pushButton.setText(gqt.fakeTranslate("Form", "Copy from IK Ref", None, -1))
         self.upvRefArrayAdd_pushButton.setText(gqt.fakeTranslate("Form", "<<", None, -1))
         self.upvRefArrayRemove_pushButton.setText(gqt.fakeTranslate("Form", ">>", None, -1))
+        self.pinRefArray_groupBox.setTitle(gqt.fakeTranslate("Form", "Pin Elbow Reference Array", None, -1))
+        self.pinRefArray_copyRef_pushButton.setText(gqt.fakeTranslate("Form", "Copy from IK Ref", None, -1))
+        self.pinRefArrayAdd_pushButton.setText(gqt.fakeTranslate("Form", "<<", None, -1))
+        self.pinRefArrayRemove_pushButton.setText(gqt.fakeTranslate("Form", ">>", None, -1))
 

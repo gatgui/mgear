@@ -54,8 +54,8 @@ SYNOPTIC_DIRECTORIES = mgear.maya.utils.gatherCustomModuleDirectories(
 # OPEN
 ##################################################
 def open(*args):
-
-    gqt.showDialog(Synoptic)
+    # open the synoptic dialog, without clean old instances
+    gqt.showDialog(Synoptic, False)
 
 
 def importTab(tabName):
@@ -94,7 +94,6 @@ class Synoptic(MayaQWidgetDockableMixin, QtWidgets.QDialog):
 
         # Initialise
         self.updateModelList()
-        self.updateTabs()
 
     def setupUi(self):
         # Widgets
@@ -198,6 +197,9 @@ class Synoptic(MayaQWidgetDockableMixin, QtWidgets.QDialog):
 
 
     def updateTabs(self):
+
+        for i in range(self.tabs.count()):
+            self.tabs.widget(i).close()
         self.tabs.clear()
         # defPath = os.environ.get("MGEAR_SYNOPTIC_PATH", None)
 
