@@ -220,7 +220,7 @@ class MainComponent(object):
         """
         return
 
-    def addJoint(self, obj, name, newActiveJnt=None, UniScale=True):
+    def addJoint(self, obj, name, newActiveJnt=None, UniScale=True, segComp=0):
         """
         Add joint as child of the active joint or under driver object.
 
@@ -257,7 +257,7 @@ class MainComponent(object):
                 pm.connectAttr(dm_node+".outputScale", jnt+".s")
 
             # Segment scale compensate Off to avoid issues with the global scale
-            jnt.setAttr("segmentScaleCompensate", 0)
+            jnt.setAttr("segmentScaleCompensate", segComp)
 
             jnt.setAttr("jointOrient", 0, 0, 0)
 
@@ -330,11 +330,13 @@ class MainComponent(object):
 
         """
         fullName = self.getName(name)
-        if fullName in self.rig.guide.controllers.keys():
-            ctl_ref = self.rig.guide.controllers[fullName]
+        bufferName =  fullName+"_controlBuffer"
+        if bufferName in self.rig.guide.controllers.keys():
+            ctl_ref = self.rig.guide.controllers[bufferName]
             ctl = pri.addTransform(parent, fullName, m)
             for shape in ctl_ref.getShapes():
                 ctl.addChild(shape, shape=True, add=True)
+                pm.rename(shape, fullName+"Shape")
             ico.setcolor(ctl, color)
         else:
             ctl = ico.create(parent, fullName, m, color, icon, **kwargs)

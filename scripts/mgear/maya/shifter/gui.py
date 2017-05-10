@@ -105,18 +105,28 @@ class Guide_UI(object):
         pm.separator()
 
         # List of components
-        doGrouping = 1 < len(shifter.COMPONENTS_DIRECTORIES.keys())
-        for path, comps in shifter.COMPONENTS_DIRECTORIES.iteritems():
+        # doGrouping = 1 < len(shifter.COMPONENTS_DIRECTORIES.keys())
+        compDir = shifter.getComponentDirectories()
+        trackLoadComponent = []
+        for path, comps in compDir.iteritems():
 
             pm.text(align="center", label=os.path.basename(path))
             pm.separator()
             for comp_name in comps:
+
+                if  comp_name in trackLoadComponent:
+                    pm.displayWarning("Custom component name: %s, already in default components. Names should be unique. This component is not loaded"%comp_name)
+                    continue
+                else:
+                    trackLoadComponent.append(comp_name)
 
                 if not os.path.exists(os.path.join(path, comp_name, "__init__.py")):
                     continue
 
                 # module = __import__("mgear.maya.rig.component."+comp_name, globals(), locals(), ["*"], -1)
                 module = shifter.importComponentGuide(comp_name)
+                # print module
+                # print dir(module)
                 reload(module)
                 image = os.path.join(path, comp_name, "icon.jpg")
 
@@ -375,13 +385,13 @@ class Guide_UI(object):
             mgear.log("Not controller group in the scene or the group is not unique", mgear.sev_error )
         for x in oSel:
             try:
-                old = pm.PyNode(cGrp.name() + "|" + x.name().split("|")[-1])
+                old = pm.PyNode(cGrp.name() + "|" + x.name().split("|")[-1] +"_controlBuffer")
                 pm.delete(old)
             except:
                 pass
             new = pm.duplicate(x)[0]
             pm.parent(new, cGrp, a=True)
-            pm.rename(new, x.name())
+            pm.rename(new, x.name() +"_controlBuffer")
             toDel = new.getChildren(type="transform")
             pm.delete(toDel)
             try:
