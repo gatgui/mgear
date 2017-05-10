@@ -38,6 +38,8 @@ import subprocess
 from functools import partial
 import datetime
 import getpass
+import traceback
+import imp
 
 
 # pymel
@@ -67,6 +69,8 @@ GUIDE_UI_WINDOW_NAME = "guide_UI_window"
 GUIDE_DOCK_NAME = "Guide_Components"
 
 TYPE = "mgear_guide_root"
+
+MGEAR_SHIFTER_CUSTOMSTEP_KEY = "MGEAR_SHIFTER_CUSTOMSTEP_PATH"
 
 ##########################################################
 # GUIDE
@@ -406,7 +410,7 @@ class RigGuide(MainGuide):
                         if element is not None and element == compChild_parent:
                             compChild.parentComponent = compParent
                             compChild.parentLocalName = localName
-                            
+
 
             # More option values
             self.addOptionsValues()
@@ -549,8 +553,8 @@ class RigGuide(MainGuide):
 
                 parent_root = parent_root.getParent()
 
-        comp_guide.drawFromUI(parent)  
-    
+        comp_guide.drawFromUI(parent)
+
     def drawUpdate(self, oldRoot, parent=None):
 
         # Initial hierarchy
@@ -571,7 +575,7 @@ class RigGuide(MainGuide):
         for name in self.componentsIndex:
             comp_guide = self.components[name]
             oldParentName = comp_guide.root.getParent().name()
-            
+
             try:
                 parent = pm.PyNode(oldParentName.replace(oldParentName.split("|")[0], newParentName))
             except:
@@ -713,7 +717,7 @@ class helperSlots(object):
 
     def addItem2listWidget(self, listWidget, targetAttr=None):
 
-        items = pm.selected()        
+        items = pm.selected()
         itemsList = [i.text() for i in listWidget.findItems("", QtCore.Qt.MatchContains)]
         # Quick clean the first empty item
         if itemsList and not itemsList[0]:
@@ -724,7 +728,7 @@ class helperSlots(object):
             if item.name() not in itemsList:
                 if item.hasAttr("isGearGuide"):
                     listWidget.addItem(item.name())
-                    
+
                 else:
                     pm.displayWarning("The object: %s, is not a valid reference, Please select only guide componet roots and guide locators."%item.name())
             else:
@@ -744,7 +748,7 @@ class helperSlots(object):
         itemsList = [i.text() for i in targetAttrListWidget.findItems("", QtCore.Qt.MatchContains)]
         if itemsList and not itemsList[0]:
             targetAttrListWidget.takeItem(0)
-        
+
         for item in sourceListWidget.selectedItems():
             targetListWidget.addItem(item.text())
             sourceListWidget.takeItem(sourceListWidget.row(item))
@@ -762,7 +766,7 @@ class helperSlots(object):
         if targetAttr:
             self.updateListAttr(sourceListWidget, targetAttr)
 
-    
+
     def updateListAttr(self, sourceListWidget, targetAttr):
         """
         Update the string attribute with values separated by commas.
@@ -771,7 +775,7 @@ class helperSlots(object):
         newValue = ",".join([i.text() for i in sourceListWidget.findItems("", QtCore.Qt.MatchContains)])
         self.root.attr(targetAttr).set(newValue)
 
-    
+
     def updateComponentName(self):
 
         newName = self.mainSettingsTab.name_lineEdit.text()
@@ -788,9 +792,9 @@ class helperSlots(object):
         #sync index
         self.mainSettingsTab.componentIndex_spinBox.setValue(self.root.attr("comp_index").get())
 
-    def updateConnector(self, sourceWidget, itemsList, *args):        
+    def updateConnector(self, sourceWidget, itemsList, *args):
         self.root.attr("connector").set(itemsList[sourceWidget.currentIndex()])
-    
+
     def populateCheck(self, targetWidget, sourceAttr, *args):
         if self.root.attr(sourceAttr).get():
             targetWidget.setCheckState(QtCore.Qt.Checked)
@@ -812,53 +816,68 @@ class helperSlots(object):
     def updateControlShape(self, sourceWidget, ctlList, targetAttr, *args):
         curIndx = sourceWidget.currentIndex()
         self.root.attr(targetAttr).set(ctlList[curIndx])
-    
+
     def setProfile(self):
         pm.select(self.root,  r=True)
         pm.runtime.GraphEditor()
 
-    
+
     def close_settings(self):
         self.close()
         gqt.deleteInstances(self, MayaQDockWidget)
 
     def editFile(self, widgetList):
         try:
-            filepath = widgetList.selectedItems()[0].text()
+            filepath = widgetList.selectedItems()[0].text().split("|")[-1][1:]
+            if  os.environ.get(MGEAR_SHIFTER_CUSTOMSTEP_KEY, ""):
+                editPath = os.path.join( os.environ.get(MGEAR_SHIFTER_CUSTOMSTEP_KEY, "") , filepath)
+            else:
+                editPath = filepath
             if filepath:
                 if sys.platform.startswith('darwin'):
-                    subprocess.call(('open', filepath))
+                    subprocess.call(('open', editPath))
                 elif os.name == 'nt':
-                    os.startfile(filepath)
+                    os.startfile(editPath)
                 elif os.name == 'posix':
-                    subprocess.call(('xdg-open', filepath))
+                    subprocess.call(('xdg-open', editPath))
             else:
                 pm.displayWarning("Please select one item from the list")
         except:
             pm.displayError("The step can't be find or does't exists")
 
     @classmethod
-    def runStep(self, stepPath):
-        with pm.UndoChunk():       
+    def runStep(self, stepPath, customStepDic):
+        with pm.UndoChunk():
             try:
                 pm.displayInfo("Executing custom step: %s"%stepPath)
-                execfile(stepPath)
-                pm.displayInfo("Custom step: %s. Succeed!!"%stepPath)
+                fileName = os.path.split(stepPath)[1].split(".")[0]
+                if  os.environ.get(MGEAR_SHIFTER_CUSTOMSTEP_KEY, ""):
+                    runPath = os.path.join( os.environ.get(MGEAR_SHIFTER_CUSTOMSTEP_KEY, "") , stepPath)
+                else:
+                    runPath = stepPath
+                customStep = imp.load_source(fileName, runPath)
+                if hasattr(customStep, "CustomShifterStep"):
+                    cs = customStep.CustomShifterStep()
+                    cs.run(customStepDic)
+                    customStepDic[cs.name] = cs
+                    pm.displayInfo("Custom Shifter Step Class: %s. Succeed!!"%stepPath)
+                else:
+                    pm.displayInfo("Custom Step simple script: %s. Succeed!!"%stepPath)
+
             except Exception as ex:
                 template = "An exception of type {0} occured. Arguments:\n{1!r}"
                 message = template.format(type(ex).__name__, ex.args)
                 pm.displayError( message)
-                cont = pm.confirmBox("Custom Step Fail", "The step:%s has failed. Continue with next step?"%stepPath + "\n\n" + message, "Continue", "stop")
+                pm.displayError(traceback.format_exc())
+                cont = pm.confirmBox("Custom Step Fail", "The step:%s has failed. Continue with next step?"%stepPath + "\n\n" + message + "\n\n" + traceback.format_exc(), "Continue", "Undo this Step")
                 if not cont:
                     pm.undo()
 
+
     def runManualStep(self, widgetList):
-        selItems = widgetList.selectedItems()        
-        for item in selItems:        
-            self.runStep( item.text())
-
-    
-
+        selItems = widgetList.selectedItems()
+        for item in selItems:
+            self.runStep( item.text().split("|")[-1][1:], customStepDic={})
 
 
 ##################
@@ -900,12 +919,12 @@ class guideSettings(MayaQWidgetDockableMixin, QtWidgets.QDialog, helperSlots):
         self.setObjectName(self.toolName)
         self.setWindowFlags(QtCore.Qt.Window)
         self.setWindowTitle(TYPE)
-        self.resize(370, 615)    
+        self.resize(500, 615)
 
     def create_controls(self):
         """
         Create the controls for the component base
-        
+
         """
         self.tabs = QtWidgets.QTabWidget()
         self.tabs.setObjectName("settings_tab")
@@ -933,7 +952,7 @@ class guideSettings(MayaQWidgetDockableMixin, QtWidgets.QDialog, helperSlots):
         self.populateCheck(self.guideSettingsTab.jointRig_checkBox, "joint_rig")
         self.populateAvailableSynopticTabs()
         for item in self.root.attr("synoptic").get().split(","):
-            self.guideSettingsTab.rigTabs_listWidget.addItem(item)         
+            self.guideSettingsTab.rigTabs_listWidget.addItem(item)
         self.guideSettingsTab.L_color_fk_spinBox.setValue(self.root.attr("L_color_fk").get())
         self.guideSettingsTab.L_color_ik_spinBox.setValue(self.root.attr("L_color_ik").get())
         self.guideSettingsTab.C_color_fk_spinBox.setValue(self.root.attr("C_color_fk").get())
@@ -953,7 +972,7 @@ class guideSettings(MayaQWidgetDockableMixin, QtWidgets.QDialog, helperSlots):
     def create_layout(self):
         """
         Create the layout for the component base settings
-        
+
         """
         self.settings_layout = QtWidgets.QVBoxLayout()
         self.settings_layout.addWidget(self.tabs)
@@ -965,9 +984,9 @@ class guideSettings(MayaQWidgetDockableMixin, QtWidgets.QDialog, helperSlots):
     def create_connections(self):
         """
         Create the slots connections to the controls functions
-        
+
         """
-        self.close_button.clicked.connect(self.close_settings)     
+        self.close_button.clicked.connect(self.close_settings)
 
         # Setting Tab
         self.guideSettingsTab.rigName_lineEdit.editingFinished.connect(partial(self.updateLineEdit, self.guideSettingsTab.rigName_lineEdit, "rig_name" ) )
@@ -1035,7 +1054,6 @@ class guideSettings(MayaQWidgetDockableMixin, QtWidgets.QDialog, helperSlots):
                 self.guideSettingsTab.available_listWidget.addItem(tab)
 
     def skinLoad(self, *args):
-            # startDir = pm.workspace(q=True, rootDirectory=True)
             startDir = self.root.attr("skin").get()
             filePath = pm.fileDialog2(dialogStyle=2, fileMode=1, startingDirectory=startDir, okc="Apply",
                                         fileFilter='mGear skin (*%s)' % skin.FILE_EXT)
@@ -1048,9 +1066,7 @@ class guideSettings(MayaQWidgetDockableMixin, QtWidgets.QDialog, helperSlots):
             self.guideSettingsTab.skin_lineEdit.setText(filePath)
 
     def addCustomStep(self, pre=True, *args):
-        '''
-        stepAttr = string attr name
-        '''
+
         if pre:
             stepAttr = "preCustomStep"
             stepWidget = self.customStepTab.preCustomStep_listWidget
@@ -1058,29 +1074,30 @@ class guideSettings(MayaQWidgetDockableMixin, QtWidgets.QDialog, helperSlots):
             stepAttr = "postCustomStep"
             stepWidget = self.customStepTab.postCustomStep_listWidget
 
-        # startDir = pm.workspace(q=True, rootDirectory=True)
-        startDir = self.root.attr(stepAttr).get()
+        # Check if we have a custom enviroment for the custom steps initial folder
+        if  os.environ.get(MGEAR_SHIFTER_CUSTOMSTEP_KEY, ""):
+            startDir = os.environ.get(MGEAR_SHIFTER_CUSTOMSTEP_KEY, "")
+        else:
+            startDir = self.root.attr(stepAttr).get()
+
         filePath = pm.fileDialog2(dialogStyle=2, fileMode=1, startingDirectory=startDir, okc="Add",
                                     fileFilter='Custom Step .py (*.py)')
         if not filePath:
             return
         if not isinstance(filePath, basestring):
             filePath = filePath[0]
-        
+
         # Quick clean the first empty item
         itemsList = [i.text() for i in stepWidget.findItems("", QtCore.Qt.MatchContains)]
         if itemsList and not itemsList[0]:
             stepWidget.takeItem(0)
-        
-        stepWidget.addItem(filePath)
+
+        if  os.environ.get(MGEAR_SHIFTER_CUSTOMSTEP_KEY, ""):
+            filePath = os.path.abspath(filePath)
+            baseReplace = os.path.abspath(os.environ.get(MGEAR_SHIFTER_CUSTOMSTEP_KEY, ""))
+            filePath = filePath.replace(baseReplace, "")[1:]
+
+
+        fileName = os.path.split(filePath)[1].split(".")[0]
+        stepWidget.addItem(fileName +" | "+filePath)
         self.updateListAttr(stepWidget, stepAttr)
-
-            
-
-
-   
-
-
-
-
-

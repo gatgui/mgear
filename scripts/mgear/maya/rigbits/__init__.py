@@ -41,7 +41,7 @@ import mgear.string
 
 def addNPO(*args):
     """
-    Add a transform node as a parent and in the same pose of each of the selected objects. 
+    Add a transform node as a parent and in the same pose of each of the selected objects.
     This way neutralize the local transfromation values.
     NPO stands for "neutral position" terminology from the all mighty Softimage ;)
     """
@@ -111,8 +111,18 @@ def createCTL(type = "square", child=False, *args):
 
 
 def addJnt(obj=False, parent=False, noReplace=False, *args):
+
     """
+
     Create one joint for each selected object.
+
+    Args:
+        obj:
+        parent:
+        noReplace:
+        *args:
+
+    Returns:
 
     """
     if not obj:
@@ -238,13 +248,18 @@ def alignToPointsLoop(points=None, loc=None, name=None, *args):
     loc.setTransformation(trans)
 
 
-def connectLocalTransfrom(s=True, r=True, t=True, *args):
+def connectLocalTransform(objects=None, s=True, r=True, t=True, *args):
     """
     Connect scale, rotatio and translation.
     """
-    if len(pm.selected()) >= 2:
-        source = pm.selected()[0]
-        targets = pm.selected()[1:]
+    if objects or len(pm.selected()) >= 2:
+        if objects:
+            source = objects[0]
+            targets = objects[1:]
+
+        else :
+            source = pm.selected()[0]
+            targets = pm.selected()[1:]
         for target in targets:
             if t:
                 pm.connectAttr(source + ".translate", target + ".translate")
@@ -253,12 +268,26 @@ def connectLocalTransfrom(s=True, r=True, t=True, *args):
             if r:
                 pm.connectAttr(source + ".rotate", target + ".rotate")
     else:
-        pm.displayWarning("Please select 2 objects. Source + target")
+        pm.displayWarning("Please at less select 2 objects. Source + target/s")
+
+def connectUseDefinedChannels(source, targets):
+    """
+    Connects the user defined channels between 2 objects with the same channels. Usually a copy of the same object.
+    """
+    udc = source.listAttr(ud=True)
+    if not isinstance(targets, list):
+        targets = [targets]
+    for c in udc:
+        for t in targets:
+            try:
+                pm.connectAttr(c, t.attr(c.name().split(".")[-1]))
+            except:
+                pm.displayWarning("%s don't have contrapart channel on %s"%(c, t))
 
 def replaceShape(*args):
-    """ 
+    """
     Replace the shape of one object by another.
-    """ 
+    """
     oSel =  pm.selected()
 
     if len(oSel) !=2:
@@ -349,31 +378,31 @@ def addBlendedJoint(oSel=None, compScale=True, *args):
             node.attr("rotInterpolation").set(1)
             pm.setAttr(node+".weight", .5)
             pm.connectAttr(x+".translate", node+".inTranslate1")
-            pm.connectAttr(x+".translate", node+".inTranslate2")     
+            pm.connectAttr(x+".translate", node+".inTranslate2")
             pm.connectAttr(x+".rotate", node+".inRotate1")
-            
+
             pm.connectAttr(node+".outRotateX", jnt+".rotateX")
             pm.connectAttr(node+".outRotateY", jnt+".rotateY")
             pm.connectAttr(node+".outRotateZ", jnt+".rotateZ")
-            
+
             pm.connectAttr(node+".outTranslateX", jnt+".translateX")
             pm.connectAttr(node+".outTranslateY", jnt+".translateY")
             pm.connectAttr(node+".outTranslateZ", jnt+".translateZ")
-            
+
             pm.connectAttr(x+".scale", jnt+".scale")
-            
+
             jnt.attr("overrideEnabled").set(1)
             jnt.attr("overrideColor").set(17)
-            
+
             jnt.attr("segmentScaleCompensate").set(compScale)
-            
+
             try:
                 defSet = pm.PyNode("rig_deformers_grp")
 
             except:
                 pm.sets(n="rig_deformers_grp")
                 defSet = pm.PyNode("rig_deformers_grp")
-            
+
             pm.sets(defSet, add=jnt)
         else:
             pm.displayWarning("Blended Joint can't be added to: %s. Because is not ot type Joint"%x.name())
@@ -384,8 +413,8 @@ def addSupportJoint(oSel=None, *args):
     elif not isinstance(oSel, list):
         oSel = [oSel]
 
-    for x in oSel: 
-        if x.name().split("_")[0] == "blend":       
+    for x in oSel:
+        if x.name().split("_")[0] == "blend":
             children = [item for item in pm.selected()[0].listRelatives(ad=True, type="joint")]
             i = len(children)
             name = x.name().replace("blend", "blendSupport_%s"%str(i))
@@ -399,7 +428,7 @@ def addSupportJoint(oSel=None, *args):
             except:
                 pm.sets(n="rig_deformers_grp")
                 defSet = pm.PyNode("rig_deformers_grp")
-            
+
             pm.sets(defSet, add=jnt)
 
         else:
