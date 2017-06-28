@@ -52,6 +52,7 @@ import mgear.maya.primitive as pri
 import mgear.maya.icon as ico
 import mgear.maya.attribute as att
 import mgear.maya.skin as skin
+import mgear.maya.dag as dag
 
 # check if we have loaded the necessary plugins
 if not pm.pluginInfo("mgear_solvers", q=True, l=True):
@@ -275,6 +276,12 @@ class Rig(object):
         # Properties --------------------------------------
         mgear.log("Finalize")
 
+        # clean jnt_org --------------------------------------
+        mgear.log("Cleaning jnt org")
+        for jOrg in dag.findChildrenPartial(self.jnt_org, "org"):
+            if not jOrg.listRelatives(c=True):
+                pm.delete(jOrg)
+
         # Groups ------------------------------------------
         mgear.log("Creating groups")
         # Retrieve group content from components
@@ -343,6 +350,10 @@ class Rig(object):
             ctl = ico.create(parent, name, m, color, icon, **kwargs)
 
         self.addToGroup(ctl, "controllers")
+
+        # Set the control shapes isHistoricallyInteresting
+        for oShape in ctl.getShapes():
+            oShape.isHistoricallyInteresting.set(False)
 
         return ctl
 
