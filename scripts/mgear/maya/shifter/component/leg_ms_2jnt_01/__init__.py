@@ -118,7 +118,7 @@ class Component(MainComponent):
         t = tra.getTransformLookingAt(self.guide.apos[2], self.guide.apos[3], self.normal, "xz", self.negate)
 
         self.fk2_npo = pri.addTransform(self.fk2_loc, self.getName("fk2_npo"), t)
-        self.fk2_ctl = self.addCtl(self.fk2_npo, "fk2_ctl", t, self.color_fk, "cube", w=self.length2, h=self.size*.1, d=self.size*.1, po=dt.Vector(.5*self.length2*self.n_factor,0,0), tp=self.fk2_ctl)
+        self.fk2_ctl = self.addCtl(self.fk2_npo, "fk2_ctl", t, self.color_fk, "cube", w=self.length2, h=self.size*.1, d=self.size*.1, po=dt.Vector(.5*self.length2*self.n_factor,0,0), tp=self.fk1_roll_ctl)
         att.setKeyableAttributes(self.fk2_ctl)
 
         self.fk_ctl = [self.fk0_roll_ctl, self.fk1_ctl, self.fk2_ctl]
@@ -241,9 +241,9 @@ class Component(MainComponent):
 
             div_cns = pri.addTransform(self.div_org, self.getName("div%s_loc" % i))
             if self.negate:
-                div_ctl = self.addCtl(div_cns, self.getName("div%s_clt" % i), tra.getTransform(div_cns), self.color_fk, "square",d=self.size*.05,w=self.size*.1,po=dt.Vector(0,self.size*-0.05,0),ro=dt.Vector(0,0,dt.radians(90)), tp=self.previousCtlTag)
+                div_ctl = self.addCtl(div_cns, self.getName("div%s_ctl" % i), tra.getTransform(div_cns), self.color_fk, "square",d=self.size*.05,w=self.size*.1,po=dt.Vector(0,self.size*-0.05,0),ro=dt.Vector(0,0,dt.radians(90)), tp=self.previousCtlTag)
             else:
-                div_ctl = self.addCtl(div_cns, self.getName("div%s_clt" % i), tra.getTransform(div_cns), self.color_fk, "square",d=self.size*.05,w=self.size*.1,po=dt.Vector(0,self.size*0.05,0),ro=dt.Vector(0,0,dt.radians(90)), tp=self.previousCtlTag)
+                div_ctl = self.addCtl(div_cns, self.getName("div%s_ctl" % i), tra.getTransform(div_cns), self.color_fk, "square",d=self.size*.05,w=self.size*.1,po=dt.Vector(0,self.size*0.05,0),ro=dt.Vector(0,0,dt.radians(90)), tp=self.previousCtlTag)
             self.previousCtlTag = div_ctl
             self.div_cns.append(div_cns)
             self.div_cnsUp.append(div_cns)
@@ -266,9 +266,9 @@ class Component(MainComponent):
             dd = i +self.divisions1+1
             div_cns = pri.addTransform(self.div_org, self.getName("div%s_loc" % dd))
             if self.negate:
-                div_ctl = self.addCtl(div_cns, self.getName("div%s_clt" % dd), tra.getTransform(div_cns), self.color_fk, "square",d=self.size*.05, w=self.size*.1,po=dt.Vector(0,self.size*-0.05,0),ro=dt.Vector(0,0,dt.radians(90)), tp=self.previousCtlTag)
+                div_ctl = self.addCtl(div_cns, self.getName("div%s_ctl" % dd), tra.getTransform(div_cns), self.color_fk, "square",d=self.size*.05, w=self.size*.1,po=dt.Vector(0,self.size*-0.05,0),ro=dt.Vector(0,0,dt.radians(90)), tp=self.previousCtlTag)
             else:
-                div_ctl = self.addCtl(div_cns, self.getName("div%s_clt" % dd), tra.getTransform(div_cns), self.color_fk, "square",d=self.size*.05, w=self.size*.1,po=dt.Vector(0,self.size*0.05,0),ro=dt.Vector(0,0,dt.radians(90)), tp=self.previousCtlTag)
+                div_ctl = self.addCtl(div_cns, self.getName("div%s_ctl" % dd), tra.getTransform(div_cns), self.color_fk, "square",d=self.size*.05, w=self.size*.1,po=dt.Vector(0,self.size*0.05,0),ro=dt.Vector(0,0,dt.radians(90)), tp=self.previousCtlTag)
             self.previousCtlTag = div_ctl
             self.div_cns.append(div_cns)
             self.div_cnsDn.append(div_cns)
@@ -377,7 +377,12 @@ class Component(MainComponent):
         node = aop.gear_ikfk2bone_op(out, self.root, self.ik_ref, self.upv_ctl, self.fk0_mtx, self.fk1_mtx, self.fk2_mtx, self.length0, self.length1, self.negate)
 
         pm.connectAttr(self.blend_att, node+".blend")
-        pm.connectAttr(self.roll_att, node+".roll")
+        if self.negate:
+            mulVal = -1
+        else:
+            mulVal = 1
+        nod.createMulNode(self.roll_att, mulVal, node+".roll")
+        # pm.connectAttr(self.roll_att, node+".roll")
         pm.connectAttr(self.scale_att, node+".scaleA")
         pm.connectAttr(self.scale_att, node+".scaleB")
         pm.connectAttr(self.maxstretch_att, node+".maxstretch")
