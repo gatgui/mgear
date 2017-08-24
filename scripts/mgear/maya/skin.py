@@ -71,7 +71,12 @@ def getSkinCluster(obj):
 
             for shape in obj.getShapes():
                 try:
-                    skinCluster = pm.listHistory(shape, type="skinCluster")[0]
+                    for skC in pm.listHistory(shape, type="skinCluster"):
+                        try:
+                            if skC.getGeometry()[0] == shape:
+                                skinCluster = skC
+                        except:
+                            pass
                 except:
                     pass
     except:
@@ -348,12 +353,15 @@ def importSkin(filePath=None, *args):
             objName = data["objName"]
             objNode = pm.PyNode(objName)
 
-            meshVertices = pm.polyEvaluate(objNode, vertex=True)
-            importedVertices = len(data['blendWeights'])
-            if meshVertices != importedVertices:
-                pm.displayWarning('Vertex counts do not match. %d != %d' %
-                                  (meshVertices, importedVertices))
-                continue
+            try:
+                meshVertices = pm.polyEvaluate(objNode, vertex=True)
+                importedVertices = len(data['blendWeights'])
+                if meshVertices != importedVertices:
+                    pm.displayWarning('Vertex counts do not match. %d != %d' %
+                                      (meshVertices, importedVertices))
+                    continue
+            except:
+                pass
 
             if  getSkinCluster(objNode):
                 skinCluster = getSkinCluster(objNode)
