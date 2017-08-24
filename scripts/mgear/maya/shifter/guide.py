@@ -33,11 +33,15 @@ Shifter's MainGuide class and RigGuide class.
 ##########################################################
 # Built-in
 import os
+import shutil
 import sys
+import json
 import subprocess
 from functools import partial
 import datetime
 import getpass
+import traceback
+import imp
 
 
 # pymel
@@ -54,24 +58,20 @@ import mgear.maya.pyqt as gqt
 import mgear.string as string
 import mgear.maya.skin as skin
 
+import guideUI as guui
+import customStepUI as csui
+
 # pyside
 from maya.app.general.mayaMixin import MayaQDockWidget
 from maya.app.general.mayaMixin import MayaQWidgetDockableMixin
 QtGui, QtCore, QtWidgets, wrapInstance = gqt.qt_import()
 
-import guideUI as guui
-import customStepUI as csui
-
-
 GUIDE_UI_WINDOW_NAME = "guide_UI_window"
 GUIDE_DOCK_NAME = "Guide_Components"
 
-COMPONENT_PATH = os.path.join(os.path.dirname(__file__), "component")
-TEMPLATE_PATH = os.path.join(COMPONENT_PATH, "templates")
-SYNOPTIC_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir, "synoptic","tabs"))
-
-
 TYPE = "mgear_guide_root"
+
+MGEAR_SHIFTER_CUSTOMSTEP_KEY = "MGEAR_SHIFTER_CUSTOMSTEP_PATH"
 
 ##########################################################
 # GUIDE
@@ -129,7 +129,7 @@ class MainGuide(object):
             bool: False if the parameter wasn't found.
 
         """
-        if not scriptName in self.paramDefs.keys():
+        if scriptName not in self.paramDefs.keys():
             mgear.log("Can't find parameter definition for : " + scriptName, mgear.sev_warning)
             return False
 
@@ -300,6 +300,8 @@ class RigGuide(MainGuide):
         self.pMode = self.addEnumParam("mode", ["Final", "WIP"], 0)
         self.pStep = self.addEnumParam("step", ["All Steps", "Objects", "Properties", "Operators", "Connect", "Joints", "Finalize"], 6)
         self.pIsModel = self.addParam("ismodel", "bool", True)
+        self.pClassicChannelNames = self.addParam("classicChannelNames", "bool", True)
+        self.pProxyChannels = self.addParam("proxyChannels", "bool", False)
 
         # --------------------------------------------------
         # skin
@@ -411,7 +413,7 @@ class RigGuide(MainGuide):
                         if element is not None and element == compChild_parent:
                             compChild.parentComponent = compParent
                             compChild.parentLocalName = localName
-                            
+
 
             # More option values
             self.addOptionsValues()
@@ -482,15 +484,18 @@ class RigGuide(MainGuide):
         """
 
         # Check component type
-        path = os.path.join(COMPONENT_PATH, comp_type, "guide.py")
+        '''
+        path = os.path.join(basepath, comp_type, "guide.py")
         if not os.path.exists(path):
             mgear.log("Can't find guide definition for : " + comp_type + ".\n"+ path, mgear.sev_error)
             return False
+        '''
 
         # Import module and get class
-        module_name = "mgear.maya.shifter.component."+comp_type+".guide"
-        module = __import__(module_name, globals(), locals(), ["*"], -1)
-        ComponentGuide = getattr(module , "Guide")
+        import mgear.maya.shifter as shifter
+        module = shifter.importComponentGuide(comp_type)
+
+        ComponentGuide = getattr(module, "Guide")
 
         return ComponentGuide()
 
@@ -551,8 +556,8 @@ class RigGuide(MainGuide):
 
                 parent_root = parent_root.getParent()
 
-        comp_guide.drawFromUI(parent)  
-    
+        comp_guide.drawFromUI(parent)
+
     def drawUpdate(self, oldRoot, parent=None):
 
         # Initial hierarchy
@@ -573,7 +578,7 @@ class RigGuide(MainGuide):
         for name in self.componentsIndex:
             comp_guide = self.components[name]
             oldParentName = comp_guide.root.getParent().name()
-            
+
             try:
                 parent = pm.PyNode(oldParentName.replace(oldParentName.split("|")[0], newParentName))
             except:
@@ -710,12 +715,13 @@ class helperSlots(object):
             pm.displayWarning("Please select first the object.")
 
     def updateLineEdit(self, lEdit, targetAttr):
-        self.root.attr(targetAttr).set(lEdit.text())
+        name = string.removeInvalidCharacter(lEdit.text())
+        self.root.attr(targetAttr).set(name)
 
 
     def addItem2listWidget(self, listWidget, targetAttr=None):
 
-        items = pm.selected()        
+        items = pm.selected()
         itemsList = [i.text() for i in listWidget.findItems("", QtCore.Qt.MatchContains)]
         # Quick clean the first empty item
         if itemsList and not itemsList[0]:
@@ -726,7 +732,7 @@ class helperSlots(object):
             if item.name() not in itemsList:
                 if item.hasAttr("isGearGuide"):
                     listWidget.addItem(item.name())
-                    
+
                 else:
                     pm.displayWarning("The object: %s, is not a valid reference, Please select only guide componet roots and guide locators."%item.name())
             else:
@@ -746,7 +752,7 @@ class helperSlots(object):
         itemsList = [i.text() for i in targetAttrListWidget.findItems("", QtCore.Qt.MatchContains)]
         if itemsList and not itemsList[0]:
             targetAttrListWidget.takeItem(0)
-        
+
         for item in sourceListWidget.selectedItems():
             targetListWidget.addItem(item.text())
             sourceListWidget.takeItem(sourceListWidget.row(item))
@@ -764,7 +770,7 @@ class helperSlots(object):
         if targetAttr:
             self.updateListAttr(sourceListWidget, targetAttr)
 
-    
+
     def updateListAttr(self, sourceListWidget, targetAttr):
         """
         Update the string attribute with values separated by commas.
@@ -773,7 +779,7 @@ class helperSlots(object):
         newValue = ",".join([i.text() for i in sourceListWidget.findItems("", QtCore.Qt.MatchContains)])
         self.root.attr(targetAttr).set(newValue)
 
-    
+
     def updateComponentName(self):
 
         newName = self.mainSettingsTab.name_lineEdit.text()
@@ -790,9 +796,9 @@ class helperSlots(object):
         #sync index
         self.mainSettingsTab.componentIndex_spinBox.setValue(self.root.attr("comp_index").get())
 
-    def updateConnector(self, sourceWidget, itemsList, *args):        
+    def updateConnector(self, sourceWidget, itemsList, *args):
         self.root.attr("connector").set(itemsList[sourceWidget.currentIndex()])
-    
+
     def populateCheck(self, targetWidget, sourceAttr, *args):
         if self.root.attr(sourceAttr).get():
             targetWidget.setCheckState(QtCore.Qt.Checked)
@@ -804,6 +810,7 @@ class helperSlots(object):
 
     def updateSpinBox(self, sourceWidget, targetAttr, *args):
         self.root.attr(targetAttr).set(sourceWidget.value())
+        return True
 
     def updateSlider(self, sourceWidget, targetAttr, *args):
         self.root.attr(targetAttr).set(float(sourceWidget.value())/100)
@@ -814,53 +821,68 @@ class helperSlots(object):
     def updateControlShape(self, sourceWidget, ctlList, targetAttr, *args):
         curIndx = sourceWidget.currentIndex()
         self.root.attr(targetAttr).set(ctlList[curIndx])
-    
+
     def setProfile(self):
         pm.select(self.root,  r=True)
         pm.runtime.GraphEditor()
 
-    
+
     def close_settings(self):
         self.close()
         gqt.deleteInstances(self, MayaQDockWidget)
 
     def editFile(self, widgetList):
         try:
-            filepath = widgetList.selectedItems()[0].text()
+            filepath = widgetList.selectedItems()[0].text().split("|")[-1][1:]
+            if  os.environ.get(MGEAR_SHIFTER_CUSTOMSTEP_KEY, ""):
+                editPath = os.path.join( os.environ.get(MGEAR_SHIFTER_CUSTOMSTEP_KEY, "") , filepath)
+            else:
+                editPath = filepath
             if filepath:
                 if sys.platform.startswith('darwin'):
-                    subprocess.call(('open', filepath))
+                    subprocess.call(('open', editPath))
                 elif os.name == 'nt':
-                    os.startfile(filepath)
+                    os.startfile(editPath)
                 elif os.name == 'posix':
-                    subprocess.call(('xdg-open', filepath))
+                    subprocess.call(('xdg-open', editPath))
             else:
                 pm.displayWarning("Please select one item from the list")
         except:
             pm.displayError("The step can't be find or does't exists")
 
     @classmethod
-    def runStep(self, stepPath):
-        with pm.UndoChunk():       
+    def runStep(self, stepPath, customStepDic):
+        with pm.UndoChunk():
             try:
-                pm.displayInfo("Executing custom step: %s"%stepPath)
-                execfile(stepPath)
-                pm.displayInfo("Custom step: %s. Succeed!!"%stepPath)
+                pm.displayInfo("EXEC: Executing custom step: %s"%stepPath)
+                fileName = os.path.split(stepPath)[1].split(".")[0]
+                if  os.environ.get(MGEAR_SHIFTER_CUSTOMSTEP_KEY, ""):
+                    runPath = os.path.join( os.environ.get(MGEAR_SHIFTER_CUSTOMSTEP_KEY, "") , stepPath)
+                else:
+                    runPath = stepPath
+                customStep = imp.load_source(fileName, runPath)
+                if hasattr(customStep, "CustomShifterStep"):
+                    cs = customStep.CustomShifterStep()
+                    cs.run(customStepDic)
+                    customStepDic[cs.name] = cs
+                    pm.displayInfo("SUCCEED: Custom Shifter Step Class: %s. Succeed!!"%stepPath)
+                else:
+                    pm.displayInfo("SUCCEED: Custom Step simple script: %s. Succeed!!"%stepPath)
+
             except Exception as ex:
                 template = "An exception of type {0} occured. Arguments:\n{1!r}"
                 message = template.format(type(ex).__name__, ex.args)
                 pm.displayError( message)
-                cont = pm.confirmBox("Custom Step Fail", "The step:%s has failed. Continue with next step?"%stepPath + "\n\n" + message, "Continue", "stop")
+                pm.displayError(traceback.format_exc())
+                cont = pm.confirmBox("FAIL: Custom Step Fail", "The step:%s has failed. Continue with next step?"%stepPath + "\n\n" + message + "\n\n" + traceback.format_exc(), "Continue", "Undo this Step")
                 if not cont:
                     pm.undo()
 
+
     def runManualStep(self, widgetList):
-        selItems = widgetList.selectedItems()        
-        for item in selItems:        
-            self.runStep( item.text())
-
-    
-
+        selItems = widgetList.selectedItems()
+        for item in selItems:
+            self.runStep( item.text().split("|")[-1][1:], customStepDic={})
 
 
 ##################
@@ -883,7 +905,8 @@ class guideSettings(MayaQWidgetDockableMixin, QtWidgets.QDialog, helperSlots):
         self.toolName = TYPE
         # Delete old instances of the componet settings window.
         gqt.deleteInstances(self, MayaQDockWidget)
-        super(self.__class__, self).__init__(parent = parent)
+        # super(self.__class__, self).__init__(parent = parent)
+        super(self.__class__, self).__init__()
         # the inspectSettings function set the current selection to the component root before open the settings dialog
         self.root = pm.selected()[0]
 
@@ -896,18 +919,20 @@ class guideSettings(MayaQWidgetDockableMixin, QtWidgets.QDialog, helperSlots):
         self.create_layout()
         self.create_connections()
 
+        self.setAttribute(QtCore.Qt.WA_DeleteOnClose, True)
+
     def setup_SettingWindow(self):
         self.mayaMainWindow = gqt.maya_main_window()
 
         self.setObjectName(self.toolName)
         self.setWindowFlags(QtCore.Qt.Window)
         self.setWindowTitle(TYPE)
-        self.resize(370, 615)    
+        self.resize(500, 615)
 
     def create_controls(self):
         """
         Create the controls for the component base
-        
+
         """
         self.tabs = QtWidgets.QTabWidget()
         self.tabs.setObjectName("settings_tab")
@@ -930,12 +955,14 @@ class guideSettings(MayaQWidgetDockableMixin, QtWidgets.QDialog, helperSlots):
         self.guideSettingsTab.rigName_lineEdit.setText(self.root.attr("rig_name").get())
         self.guideSettingsTab.mode_comboBox.setCurrentIndex(self.root.attr("mode").get())
         self.guideSettingsTab.step_comboBox.setCurrentIndex(self.root.attr("step").get())
+        self.populateCheck(self.guideSettingsTab.proxyChannels_checkBox, "proxyChannels")
+        self.populateCheck(self.guideSettingsTab.classicChannelNames_checkBox, "classicChannelNames")
         self.populateCheck(self.guideSettingsTab.importSkin_checkBox, "importSkin")
         self.guideSettingsTab.skin_lineEdit.setText(self.root.attr("skin").get())
         self.populateCheck(self.guideSettingsTab.jointRig_checkBox, "joint_rig")
         self.populateAvailableSynopticTabs()
         for item in self.root.attr("synoptic").get().split(","):
-            self.guideSettingsTab.rigTabs_listWidget.addItem(item)         
+            self.guideSettingsTab.rigTabs_listWidget.addItem(item)
         self.guideSettingsTab.L_color_fk_spinBox.setValue(self.root.attr("L_color_fk").get())
         self.guideSettingsTab.L_color_ik_spinBox.setValue(self.root.attr("L_color_ik").get())
         self.guideSettingsTab.C_color_fk_spinBox.setValue(self.root.attr("C_color_fk").get())
@@ -955,7 +982,7 @@ class guideSettings(MayaQWidgetDockableMixin, QtWidgets.QDialog, helperSlots):
     def create_layout(self):
         """
         Create the layout for the component base settings
-        
+
         """
         self.settings_layout = QtWidgets.QVBoxLayout()
         self.settings_layout.addWidget(self.tabs)
@@ -967,14 +994,17 @@ class guideSettings(MayaQWidgetDockableMixin, QtWidgets.QDialog, helperSlots):
     def create_connections(self):
         """
         Create the slots connections to the controls functions
-        
+
         """
-        self.close_button.clicked.connect(self.close_settings)     
+        self.close_button.clicked.connect(self.close_settings)
 
         # Setting Tab
         self.guideSettingsTab.rigName_lineEdit.editingFinished.connect(partial(self.updateLineEdit, self.guideSettingsTab.rigName_lineEdit, "rig_name" ) )
         self.guideSettingsTab.mode_comboBox.currentIndexChanged.connect(partial(self.updateComboBox, self.guideSettingsTab.mode_comboBox, "mode"))
         self.guideSettingsTab.step_comboBox.currentIndexChanged.connect(partial(self.updateComboBox, self.guideSettingsTab.step_comboBox, "step"))
+
+        self.guideSettingsTab.proxyChannels_checkBox.stateChanged.connect(partial(self.updateCheck, self.guideSettingsTab.proxyChannels_checkBox, "proxyChannels"))
+        self.guideSettingsTab.classicChannelNames_checkBox.stateChanged.connect(partial(self.updateCheck, self.guideSettingsTab.classicChannelNames_checkBox, "classicChannelNames"))
 
         self.guideSettingsTab.importSkin_checkBox.stateChanged.connect(partial(self.updateCheck, self.guideSettingsTab.importSkin_checkBox, "importSkin"))
         self.guideSettingsTab.jointRig_checkBox.stateChanged.connect(partial(self.updateCheck, self.guideSettingsTab.jointRig_checkBox, "joint_rig"))
@@ -993,6 +1023,10 @@ class guideSettings(MayaQWidgetDockableMixin, QtWidgets.QDialog, helperSlots):
         # custom Step Tab
         self.customStepTab.preCustomStep_checkBox.stateChanged.connect(partial(self.updateCheck, self.customStepTab.preCustomStep_checkBox, "doPreCustomStep"))
         self.customStepTab.preCustomStepAdd_pushButton.clicked.connect(self.addCustomStep)
+        self.customStepTab.preCustomStepNew_pushButton.clicked.connect(self.newCustomStep)
+        self.customStepTab.preCustomStepDuplicate_pushButton.clicked.connect(self.duplicateCustomStep)
+        self.customStepTab.preCustomStepExport_pushButton.clicked.connect(self.exportCustomStep)
+        self.customStepTab.preCustomStepImport_pushButton.clicked.connect(self.importCustomStep)
         self.customStepTab.preCustomStepRemove_pushButton.clicked.connect(partial(self.removeSelectedFromListWidget, self.customStepTab.preCustomStep_listWidget, "preCustomStep"))
         self.customStepTab.preCustomStep_listWidget.installEventFilter(self)
         self.customStepTab.preCustomStepRun_pushButton.clicked.connect(partial(self.runManualStep, self.customStepTab.preCustomStep_listWidget))
@@ -1000,6 +1034,10 @@ class guideSettings(MayaQWidgetDockableMixin, QtWidgets.QDialog, helperSlots):
 
         self.customStepTab.postCustomStep_checkBox.stateChanged.connect(partial(self.updateCheck, self.customStepTab.postCustomStep_checkBox, "doPostCustomStep"))
         self.customStepTab.postCustomStepAdd_pushButton.clicked.connect(partial(self.addCustomStep, False))
+        self.customStepTab.postCustomStepNew_pushButton.clicked.connect(partial(self.newCustomStep, False))
+        self.customStepTab.postCustomStepDuplicate_pushButton.clicked.connect(partial(self.duplicateCustomStep, False))
+        self.customStepTab.postCustomStepExport_pushButton.clicked.connect(partial(self.exportCustomStep, False))
+        self.customStepTab.postCustomStepImport_pushButton.clicked.connect(partial(self.importCustomStep, False))
         self.customStepTab.postCustomStepRemove_pushButton.clicked.connect(partial(self.removeSelectedFromListWidget, self.customStepTab.postCustomStep_listWidget, "postCustomStep"))
         self.customStepTab.postCustomStep_listWidget.installEventFilter(self)
         self.customStepTab.postCustomStepRun_pushButton.clicked.connect(partial(self.runManualStep, self.customStepTab.postCustomStep_listWidget))
@@ -1016,14 +1054,18 @@ class guideSettings(MayaQWidgetDockableMixin, QtWidgets.QDialog, helperSlots):
                 self.updateListAttr(sender, "preCustomStep")
             elif sender == self.customStepTab.postCustomStep_listWidget:
                 self.updateListAttr(sender, "postCustomStep")
+            return True
+        else:
+            return QtWidgets.QDialog.eventFilter(self, sender, event)
 
     # Slots ########################################################
 
     def populateAvailableSynopticTabs(self):
 
+        import mgear.maya.shifter as shifter
         defPath = os.environ.get("MGEAR_SYNOPTIC_PATH", None)
         if not defPath or not os.path.isdir(defPath):
-            defPath = SYNOPTIC_PATH
+            defPath = shifter.SYNOPTIC_PATH
 
         tabsDirectories = [ name for name in os.listdir(defPath) if os.path.isdir(os.path.join(defPath, name)) ]
         # Quick clean the first empty item
@@ -1036,10 +1078,9 @@ class guideSettings(MayaQWidgetDockableMixin, QtWidgets.QDialog, helperSlots):
                 self.guideSettingsTab.available_listWidget.addItem(tab)
 
     def skinLoad(self, *args):
-            # startDir = pm.workspace(q=True, rootDirectory=True)
             startDir = self.root.attr("skin").get()
             filePath = pm.fileDialog2(dialogStyle=2, fileMode=1, startingDirectory=startDir, okc="Apply",
-                                        fileFilter='mGear skin (*%s)' % skin.FILE_EXT)
+                                      fileFilter='mGear skin (*%s)' % skin.FILE_EXT)
             if not filePath:
                 return
             if not isinstance(filePath, basestring):
@@ -1049,9 +1090,16 @@ class guideSettings(MayaQWidgetDockableMixin, QtWidgets.QDialog, helperSlots):
             self.guideSettingsTab.skin_lineEdit.setText(filePath)
 
     def addCustomStep(self, pre=True, *args):
-        '''
-        stepAttr = string attr name
-        '''
+        """Add a new custom step
+
+        Args:
+            pre (bool, optional): If true adds the steps to the pre step list
+            *args: Maya's Dummy
+
+        Returns:
+            None: None
+        """
+
         if pre:
             stepAttr = "preCustomStep"
             stepWidget = self.customStepTab.preCustomStep_listWidget
@@ -1059,29 +1107,285 @@ class guideSettings(MayaQWidgetDockableMixin, QtWidgets.QDialog, helperSlots):
             stepAttr = "postCustomStep"
             stepWidget = self.customStepTab.postCustomStep_listWidget
 
-        # startDir = pm.workspace(q=True, rootDirectory=True)
-        startDir = self.root.attr(stepAttr).get()
+        # Check if we have a custom enviroment for the custom steps initial folder
+        if  os.environ.get(MGEAR_SHIFTER_CUSTOMSTEP_KEY, ""):
+            startDir = os.environ.get(MGEAR_SHIFTER_CUSTOMSTEP_KEY, "")
+        else:
+            startDir = self.root.attr(stepAttr).get()
+
         filePath = pm.fileDialog2(dialogStyle=2, fileMode=1, startingDirectory=startDir, okc="Add",
-                                    fileFilter='Custom Step .py (*.py)')
+                                  fileFilter='Custom Step .py (*.py)')
         if not filePath:
             return
         if not isinstance(filePath, basestring):
             filePath = filePath[0]
-        
+
         # Quick clean the first empty item
         itemsList = [i.text() for i in stepWidget.findItems("", QtCore.Qt.MatchContains)]
         if itemsList and not itemsList[0]:
             stepWidget.takeItem(0)
-        
-        stepWidget.addItem(filePath)
+
+        if  os.environ.get(MGEAR_SHIFTER_CUSTOMSTEP_KEY, ""):
+            filePath = os.path.abspath(filePath)
+            baseReplace = os.path.abspath(os.environ.get(MGEAR_SHIFTER_CUSTOMSTEP_KEY, ""))
+            filePath = filePath.replace(baseReplace, "")[1:]
+
+
+        fileName = os.path.split(filePath)[1].split(".")[0]
+        stepWidget.addItem(fileName +" | "+filePath)
         self.updateListAttr(stepWidget, stepAttr)
 
-            
+    def newCustomStep(self, pre=True, *args):
+        """Creates a new custom step
+
+        Args:
+            pre (bool, optional): If true adds the steps to the pre step list
+            *args: Maya's Dummy
+
+        Returns:
+            None: None
+        """
+
+        if pre:
+            stepAttr = "preCustomStep"
+            stepWidget = self.customStepTab.preCustomStep_listWidget
+        else:
+            stepAttr = "postCustomStep"
+            stepWidget = self.customStepTab.postCustomStep_listWidget
+
+        # Check if we have a custom enviroment for the custom steps initial folder
+        if  os.environ.get(MGEAR_SHIFTER_CUSTOMSTEP_KEY, ""):
+            startDir = os.environ.get(MGEAR_SHIFTER_CUSTOMSTEP_KEY, "")
+        else:
+            startDir = self.root.attr(stepAttr).get()
+
+        filePath = pm.fileDialog2(dialogStyle=2, fileMode=0, startingDirectory=startDir, okc="New",
+                                  fileFilter='Custom Step .py (*.py)')
+        if not filePath:
+            return
+        if not isinstance(filePath, basestring):
+            filePath = filePath[0]
+
+        n, e = os.path.splitext(filePath)
+        stepName = os.path.split(n)[-1]
+        # raw custome step string
+        rawString = r'''
+import mgear.maya.shifter.customStep as cstp
 
 
-   
+class CustomShifterStep(cstp.customShifterMainStep):
+    def __init__(self):
+        self.name = "%s"
 
 
+    def run(self, stepDict):
+        """Run method.
+
+            i.e:  stepDict["mgearRun"].global_ctl  gets the global_ctl from shifter rig on post step
+            i.e:  stepDict["otherCustomStepName"].ctlMesh  gets the ctlMesh from a previous custom
+                    step called "otherCustomStepName"
+        Args:
+            stepDict (dic): Dictionary containing the objects from the previous steps
+
+        Returns:
+            None: None
+        """
+        return'''%stepName
+        f = open(filePath, 'w')
+        f.write(rawString + "\n")
+        f.close()
+
+        # Quick clean the first empty item
+        itemsList = [i.text() for i in stepWidget.findItems("", QtCore.Qt.MatchContains)]
+        if itemsList and not itemsList[0]:
+            stepWidget.takeItem(0)
+
+        if  os.environ.get(MGEAR_SHIFTER_CUSTOMSTEP_KEY, ""):
+            filePath = os.path.abspath(filePath)
+            baseReplace = os.path.abspath(os.environ.get(MGEAR_SHIFTER_CUSTOMSTEP_KEY, ""))
+            filePath = filePath.replace(baseReplace, "")[1:]
+
+        fileName = os.path.split(filePath)[1].split(".")[0]
+        stepWidget.addItem(fileName +" | "+filePath)
+        self.updateListAttr(stepWidget, stepAttr)
+
+    def duplicateCustomStep(self, pre=True, *args):
+        """Duplicate the selected step
+
+        Args:
+            pre (bool, optional): If true adds the steps to the pre step list
+            *args: Maya's Dummy
+
+        Returns:
+            None: None
+        """
+
+        if pre:
+            stepAttr = "preCustomStep"
+            stepWidget = self.customStepTab.preCustomStep_listWidget
+        else:
+            stepAttr = "postCustomStep"
+            stepWidget = self.customStepTab.postCustomStep_listWidget
+
+        # Check if we have a custom enviroment for the custom steps initial folder
+        if  os.environ.get(MGEAR_SHIFTER_CUSTOMSTEP_KEY, ""):
+            startDir = os.environ.get(MGEAR_SHIFTER_CUSTOMSTEP_KEY, "")
+        else:
+            startDir = self.root.attr(stepAttr).get()
+
+        if stepWidget.selectedItems():
+            sourcePath = stepWidget.selectedItems()[0].text().split("|")[-1][1:]
+
+        filePath = pm.fileDialog2(dialogStyle=2, fileMode=0, startingDirectory=startDir, okc="New",
+                                  fileFilter='Custom Step .py (*.py)')
+        if not filePath:
+            return
+        if not isinstance(filePath, basestring):
+            filePath = filePath[0]
+
+        if  os.environ.get(MGEAR_SHIFTER_CUSTOMSTEP_KEY, ""):
+            sourcePath = os.path.join(startDir, sourcePath)
+        shutil.copy(sourcePath, filePath)
+
+        # Quick clean the first empty item
+        itemsList = [i.text() for i in stepWidget.findItems("", QtCore.Qt.MatchContains)]
+        if itemsList and not itemsList[0]:
+            stepWidget.takeItem(0)
+
+        if  os.environ.get(MGEAR_SHIFTER_CUSTOMSTEP_KEY, ""):
+            filePath = os.path.abspath(filePath)
+            baseReplace = os.path.abspath(os.environ.get(MGEAR_SHIFTER_CUSTOMSTEP_KEY, ""))
+            filePath = filePath.replace(baseReplace, "")[1:]
 
 
+        fileName = os.path.split(filePath)[1].split(".")[0]
+        stepWidget.addItem(fileName +" | "+filePath)
+        self.updateListAttr(stepWidget, stepAttr)
 
+    def exportCustomStep(self, pre=True, *args):
+        """Export custom steps to a json file
+
+        Args:
+            pre (bool, optional): If true takes the steps from the pre step list
+            *args: Maya's Dummy
+
+        Returns:
+            None: None
+        """
+        if pre:
+            stepAttr = "preCustomStep"
+            stepWidget = self.customStepTab.preCustomStep_listWidget
+        else:
+            stepAttr = "postCustomStep"
+            stepWidget = self.customStepTab.postCustomStep_listWidget
+
+        # Quick clean the first empty item
+        itemsList = [i.text() for i in stepWidget.findItems("", QtCore.Qt.MatchContains)]
+        if itemsList and not itemsList[0]:
+            stepWidget.takeItem(0)
+
+        # Check if we have a custom enviroment for the custom steps initial folder
+        if  os.environ.get(MGEAR_SHIFTER_CUSTOMSTEP_KEY, ""):
+            startDir = os.environ.get(MGEAR_SHIFTER_CUSTOMSTEP_KEY, "")
+            itemsList = [os.path.join(startDir, i.text().split("|")[-1][1:]) for i in stepWidget.findItems("", QtCore.Qt.MatchContains)]
+        else:
+            itemsList = [i.text().split("|")[-1][1:] for i in stepWidget.findItems("", QtCore.Qt.MatchContains)]
+            if itemsList:
+                startDir = os.path.split(itemsList[-1])[0]
+            else:
+                pm.displayWarning("No custom steps to export.")
+                return
+
+        stepsDict = {}
+        stepsDict["itemsList"] =  itemsList
+        for item in itemsList:
+            step = open(item, "r")
+            data = step.read()
+            stepsDict[item] = data
+            step.close()
+
+        data_string = json.dumps(stepsDict, indent=4, sort_keys=True)
+        filePath = pm.fileDialog2(dialogStyle=2, fileMode=0, startingDirectory=startDir,
+                                  fileFilter='Shifter Custom Steps .scs (*%s)' %".scs")
+        if not filePath:
+            return
+        if not isinstance(filePath, basestring):
+            filePath = filePath[0]
+        f = open(filePath, 'w')
+        f.write(data_string)
+        f.close()
+
+    def importCustomStep(self, pre=True, *args):
+        """Import custom steps from a json file
+
+        Args:
+            pre (bool, optional): If true import to pre steps list
+            *args: Maya's Dummy
+
+        Returns:
+            None: None
+        """
+        if pre:
+            stepAttr = "preCustomStep"
+            stepWidget = self.customStepTab.preCustomStep_listWidget
+        else:
+            stepAttr = "postCustomStep"
+            stepWidget = self.customStepTab.postCustomStep_listWidget
+
+        # option import only paths or unpack steps
+        option = pm.confirmDialog(  title='Shifter Custom Step Import Style',
+                                    message='Do you want to import only the path or unpack and import?',
+                                    button=['Only Path','Unpack', 'Cancel'], defaultButton='Only Path',
+                                    cancelButton='Cancel', dismissString='Cancel' )
+
+        if option in ['Only Path',  'Unpack' ]:
+            if  os.environ.get(MGEAR_SHIFTER_CUSTOMSTEP_KEY, ""):
+                startDir = os.environ.get(MGEAR_SHIFTER_CUSTOMSTEP_KEY, "")
+            else:
+                startDir = pm.workspace(q=True, rootDirectory=True)
+
+            filePath = pm.fileDialog2(  dialogStyle=2, fileMode=1, startingDirectory=startDir,
+                                        fileFilter='Shifter Custom Steps .scs (*%s)' %".scs")
+            if not filePath:
+                return
+            if not isinstance(filePath, basestring):
+                filePath = filePath[0]
+            stepDict = json.load(open(filePath))
+            stepsList = []
+
+        if option =='Only Path':
+            for item in stepDict["itemsList"]:
+                stepsList.append(item)
+
+        elif option == 'Unpack':
+            unPackDir = pm.fileDialog2(dialogStyle=2, fileMode=2, startingDirectory=startDir)
+            if not filePath:
+                return
+            if not isinstance(unPackDir, basestring):
+                unPackDir = unPackDir[0]
+
+            for item in stepDict["itemsList"]:
+                fileName = os.path.split(item)[1]
+                fileNewPath = os.path.join(unPackDir, fileName)
+                stepsList.append(fileNewPath)
+                f = open(fileNewPath, 'w')
+                f.write(stepDict[item])
+                f.close()
+
+        if option in ['Only Path',  'Unpack' ]:
+
+            for item in stepsList:
+                # Quick clean the first empty item
+                itemsList = [i.text() for i in stepWidget.findItems("", QtCore.Qt.MatchContains)]
+                if itemsList and not itemsList[0]:
+                    stepWidget.takeItem(0)
+
+                if  os.environ.get(MGEAR_SHIFTER_CUSTOMSTEP_KEY, ""):
+                    item = os.path.abspath(item)
+                    baseReplace = os.path.abspath(os.environ.get(MGEAR_SHIFTER_CUSTOMSTEP_KEY, ""))
+                    item = item.replace(baseReplace, "")[1:]
+
+
+                fileName = os.path.split(item)[1].split(".")[0]
+                stepWidget.addItem(fileName +" | "+item)
+                self.updateListAttr(stepWidget, stepAttr)

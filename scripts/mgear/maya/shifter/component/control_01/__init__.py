@@ -27,8 +27,6 @@
 #############################################
 # GLOBAL
 #############################################
-
-import pymel.core as pm
 # mgear
 from mgear.maya.shifter.component import MainComponent
 
@@ -44,8 +42,6 @@ class Component(MainComponent):
 
     def addObjects(self):
 
-       
-
         if self.settings["neutralRotation"]:
             t = tra.getTransformFromPos(self.guide.pos["root"])
         else:
@@ -53,7 +49,7 @@ class Component(MainComponent):
             t = tra.setMatrixScale(t)
         self.ik_cns = pri.addTransform(self.root, self.getName("ik_cns"), t)
 
-        self.ctl = self.addCtl(self.ik_cns, "ctl", t, self.color_ik, self.settings["icon"], w=self.settings["ctlSize"], h=self.settings["ctlSize"], d=self.settings["ctlSize"])
+        self.ctl = self.addCtl(self.ik_cns, "ctl", t, self.color_ik, self.settings["icon"], w=self.settings["ctlSize"], h=self.settings["ctlSize"], d=self.settings["ctlSize"], tp=self.parentCtlTag)
 
         params = [ s for s in ["tx", "ty", "tz", "ro", "rx", "ry", "rz", "sx", "sy", "sz"] if self.settings["k_"+s] ]
         att.setKeyableAttributes(self.ctl, params)
@@ -72,7 +68,7 @@ class Component(MainComponent):
             if len(ref_names) > 1:
                 self.ikref_att = self.addAnimEnumParam("ikref", "Ik Ref", 0, self.settings["ikrefarray"].split(","))
 
-        
+
     def addOperators(self):
         return
 
@@ -83,6 +79,7 @@ class Component(MainComponent):
     # @param self
     def setRelation(self):
         self.relatives["root"] = self.ctl
+        self.controlRelatives["root"] = self.ctl
         if self.settings["joint"]:
             self.jointRelatives["root"] = 0
 

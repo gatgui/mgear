@@ -51,7 +51,7 @@ def addCnsCurve(parent, name, centers, degree=1):
         name (str): Name
         centers (list of dagNode): Object that will drive the curve.
         degree (int): 1 for linear curve, 3 for Cubic.
-    
+
     Returns:
         dagNode: The newly created curve.
     """
@@ -66,7 +66,7 @@ def addCnsCurve(parent, name, centers, degree=1):
 
     node = addCurve(parent, name, points, False, degree)
 
-    op = aop.gear_curvecns_op(node, centers)
+    aop.gear_curvecns_op(node, centers)
 
     return node
 
@@ -82,7 +82,7 @@ def addCurve(parent, name, points, close=False, degree=3, m=dt.Matrix()):
         close (bool): True to close the curve.
         degree (bool): 1 for linear curve, 3 for Cubic.
         m (matrix): Global transform.
-    
+
     Returns:
         dagNode: The newly created curve.
     """
@@ -101,6 +101,50 @@ def addCurve(parent, name, points, close=False, degree=3, m=dt.Matrix()):
 
     return node
 
+def createCurveFromOrderedEdges(edgeLoop, startVertex, name, parent=None, degree=3):
+    """Create a curve for a edgeloop ordering the list from starting vertex
+
+    Args:
+        edgeLoop (list ): List of edges
+        startVertex (vertex): Starting vertex
+        name (str): Name of the new curve.
+        parent (dagNode): Parent of the new curve.
+        degree (int): Degree of the new curve.
+
+    Returns:
+        dagNode: The newly created curve.
+    """
+    orderedEdges = []
+    for e in edgeLoop:
+        if startVertex in e.connectedVertices():
+            orderedEdges.append(e)
+            next = e
+            break
+    count = 0
+    while True:
+        for e in edgeLoop:
+            if e in next.connectedEdges() and e not in orderedEdges:
+                orderedEdges.append(e)
+                next = e
+                pass
+        if len(orderedEdges) == len(edgeLoop):
+            break
+        count +=1
+        if count > 100:
+            break
+
+    # return orderedEdges
+    orderedVertex = [startVertex]
+    orderedVertexPos = [startVertex.getPosition(space='world')]
+    for e in orderedEdges:
+
+        for v in e.connectedVertices():
+            if v not in orderedVertex:
+                orderedVertex.append(v)
+                orderedVertexPos.append(v.getPosition(space='world'))
+
+    crv = addCurve(parent, name, orderedVertexPos, degree=degree)
+    return crv
 
 def createCuveFromEdges(edgeList, name, parent=None, degree=3, sortingAxis="x"):
     """
@@ -112,10 +156,10 @@ def createCuveFromEdges(edgeList, name, parent=None, degree=3, sortingAxis="x"):
         parent (dagNode): Parent of the new curve.
         degree (int): Degree of the new curve.
         sortingAxis (str): Sorting axis x, y or z
-        
+
     Returns:
         dagNode: The newly created curve.
-    
+
     """
     if sortingAxis == "x":
         axis = 0
@@ -134,10 +178,10 @@ def createCuveFromEdges(edgeList, name, parent=None, degree=3, sortingAxis="x"):
     for x in vList:
         vtx = pm.PyNode(x)
         for v in vtx:
-             centers.append(v.getPosition(space='world'))
-             # we use index [0] to order in X axis
-             xOrder.append(v.getPosition(space='world')[axis])
-             xReOrder.append(v.getPosition(space='world')[axis])
+            centers.append(v.getPosition(space='world'))
+            # we use index [0] to order in X axis
+            xOrder.append(v.getPosition(space='world')[axis])
+            xReOrder.append(v.getPosition(space='world')[axis])
     for x in sorted(xReOrder):
         i = xOrder.index(x)
         centersOrdered.append(centers[i])
@@ -184,7 +228,7 @@ def getCurveParamAtPosition(crv, position):
     Args:
         position (list of float): Represents the position in worldSpace exp: [1.4, 3.55, 42.6]
         crv (curve): The  source curve to get the parameter.
-    
+
     Returns:
         list: paramenter and curve length
     """

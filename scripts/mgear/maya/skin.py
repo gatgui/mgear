@@ -36,41 +36,65 @@ This module is derivated from Chad Vernon's Skin IO.
 #############################################
 # GLOBAL
 #############################################
+import os
 import cPickle as pickle
+import json
+from functools import partial
 
 import pymel.core as pm
 import maya.OpenMaya as OpenMaya
 
 FILE_EXT = ".gSkin"
+PACK_EXT = ".gSkinPack"
 
 ######################################
 ##   Skin getters
 ######################################
 
 def getSkinCluster(obj):
+    """
+    Get the skincluster of a given object
+
+    Args:
+        obj (dagNode): The object to get skincluster
+
+    Returns:
+        pyNode: The skin cluster pynode object
+    """
+
+    skinCluster = None
 
     if  isinstance(obj, basestring):
         obj = pm.PyNode(obj)
     try:
         if pm.nodeType(obj.getShape()) in ["mesh", "nurbsSurface", "nurbsCurve"]:
-            # experiment try to find skycluster from referenced geo
-            if pm.referenceQuery( obj, isNodeReferenced=True ):
-                fullName = obj.getShape().name()
-                if len(fullName.split(":"))>1:
-                    name = fullName.split(":")[-1]
-                    nameSpace = fullName.split(":")[:-1]
-                    deformed = pm.PyNode( name+"Deformed")
-                else:
-                    deformed = pm.PyNode(fullName)
-                
-                skinCluster = pm.listHistory(deformed, type="skinCluster")[0]
-            else:
-                skinCluster = pm.listHistory(obj.getShape(), type="skinCluster")[0]
+
+            for shape in obj.getShapes():
+                try:
+                    for skC in pm.listHistory(shape, type="skinCluster"):
+                        try:
+                            if skC.getGeometry()[0] == shape:
+                                skinCluster = skC
+                        except:
+                            pass
+                except:
+                    pass
     except:
-        skinCluster = None
+        pm.displayWarning("%s: is not supported."% obj.name())
+
     return skinCluster
 
 def getGeometryComponents(skinCls):
+    """
+    Get the geometry components from skincluster
+
+    Args:
+        skinCls (PyNode): The skincluster node
+
+    Returns:
+        dagPath: The dagpath for the components
+        componets: The skincluster componets
+    """
     fnSet = OpenMaya.MFnSet(skinCls.__apimfn__().deformerSet())
     members = OpenMaya.MSelectionList()
     fnSet.getMembers(members, False)
@@ -80,6 +104,17 @@ def getGeometryComponents(skinCls):
     return dagPath, components
 
 def getCurrentWeights(skinCls, dagPath, components):
+    """
+    Get the skincluster weights
+
+    Args:
+        skinCls (PyNode): The skincluster node
+        dagPath (MDagPath): The skincluster dagpath
+        components (MObject): The skincluster components
+
+    Returns:
+        MDoubleArray: The skincluster weights
+    """
     weights = OpenMaya.MDoubleArray()
     util = OpenMaya.MScriptUtil()
     util.createFromInt(0)
@@ -101,7 +136,7 @@ def collectInfluenceWeights(skinCls, dagPath, components, dataDic):
         influenceName = influencePaths[ii].partialPathName()
         influenceWithoutNamespace = pm.PyNode(influenceName).stripNamespace()
         dataDic['weights'][influenceWithoutNamespace] = \
-                [weights[jj*numInfluences+ii] for jj in range(numComponentsPerInfluence)]
+               [weights[jj*numInfluences+ii] for jj in range(numComponentsPerInfluence)]
 
 
 def collectBlendWeights(skinCls, dagPath, components, dataDic):
@@ -135,16 +170,15 @@ def exportSkin(filePath=None, objs=None, *args):
             pm.displayWarning("Please Select One or more objects")
             return False
 
-    packDic = {
-            "objs":[],
-            "objDDic":[],
-            "bypassObj":[]
-            }
+    packDic = { "objs":[],
+                "objDDic":[],
+                "bypassObj":[]
+                }
 
     if not filePath:
         startDir = pm.workspace(q=True, rootDirectory=True)
         filePath = pm.fileDialog2(dialogStyle=2, fileMode=0, startingDirectory=startDir,
-                                    fileFilter='mGear Skin (*%s)' % FILE_EXT)
+                                  fileFilter='mGear Skin (*%s)' % FILE_EXT)
         filePath = filePath[0]
     if not filePath:
         return False
@@ -160,13 +194,12 @@ def exportSkin(filePath=None, objs=None, *args):
             pass
         else:
 
-            dataDic = {
-                'weights':{},
-                'blendWeights':[],
-                'skinClsName':"",
-                'objName':"",
-                'nameSpace':""
-                }
+            dataDic = { 'weights':{},
+                        'blendWeights':[],
+                        'skinClsName':"",
+                        'objName':"",
+                        'nameSpace':""
+                        }
 
             dataDic["objName"] = obj.name()
             dataDic["nameSpace"] = obj.namespace()
@@ -177,7 +210,7 @@ def exportSkin(filePath=None, objs=None, *args):
             packDic["objs"].append(obj.name())
             packDic["objDDic"].append(dataDic)
             pm.displayInfo( 'Exported skinCluster %s (%d influences, %d vertices) %s' % ( skinCls.name(),
-            len(dataDic['weights'].keys()), len(dataDic['blendWeights']), obj.name()))
+                            len(dataDic['weights'].keys()), len(dataDic['blendWeights']), obj.name()))
 
 
     fh = open(filePath, 'wb')
@@ -185,6 +218,51 @@ def exportSkin(filePath=None, objs=None, *args):
     fh.close()
 
     return True
+
+def exportSkinPack(packPath=None, objs=None, *args):
+
+    if not objs:
+        if pm.selected():
+            objs = pm.selected()
+        else:
+            pm.displayWarning("Please Select Some Objects")
+            return
+
+
+    packDic = {
+            "packFiles":[],
+            "rootPath":[]
+            }
+
+    startDir = pm.workspace(q=True, rootDirectory=True)
+    packPath = pm.fileDialog2(dialogStyle=2, fileMode=0, startingDirectory=startDir,
+                                    fileFilter='mGear skinPack (*%s)' % PACK_EXT)
+    if not packPath:
+        return
+    packPath = packPath[0]
+    if not packPath.endswith(PACK_EXT):
+        packPath += PACK_EXT
+
+    packDic["rootPath"], packName =  os.path.split(packPath)
+
+    for obj in objs:
+        fileName = obj.stripNamespace() + FILE_EXT
+        filePath = os.path.join(packDic["rootPath"], fileName)
+        if exportSkin(filePath, [obj]):
+            packDic["packFiles"].append(fileName)
+            pm.displayInfo( filePath)
+        else:
+            pm.displayWarning(obj.name() + ": Skiped because don't have Skin Cluster")
+
+    if packDic["packFiles"]:
+        data_string = json.dumps(packDic, indent=4, sort_keys=True)
+        f = open(packPath, 'w')
+        f.write(data_string + "\n")
+        f.close()
+        pm.displayInfo("Skin Pack exported: " + packPath)
+    else:
+        pm.displayWarning("Any of the selected objects have Skin Cluster. Skin Pack export aborted.")
+
 
 ######################################
 ##   Skin setters
@@ -239,7 +317,7 @@ def getObjsFromSkinFile(filePath=None, *args):
     if not filePath:
         startDir = pm.workspace(q=True, rootDirectory=True)
         filePath = pm.fileDialog2(dialogStyle=2, fileMode=1, startingDirectory=startDir,
-                                    fileFilter='mGear Skin (*%s)' % FILE_EXT)
+                                  fileFilter='mGear Skin (*%s)' % FILE_EXT)
     if not filePath:
         return
     if not isinstance(filePath, basestring):
@@ -257,7 +335,7 @@ def importSkin(filePath=None, *args):
     if not filePath:
         startDir = pm.workspace(q=True, rootDirectory=True)
         filePath = pm.fileDialog2(dialogStyle=2, fileMode=1, startingDirectory=startDir,
-                                    fileFilter='mGear Skin (*%s)' % FILE_EXT)
+                                  fileFilter='mGear Skin (*%s)' % FILE_EXT)
     if not filePath:
         return
     if not isinstance(filePath, basestring):
@@ -275,12 +353,15 @@ def importSkin(filePath=None, *args):
             objName = data["objName"]
             objNode = pm.PyNode(objName)
 
-            meshVertices = pm.polyEvaluate(objNode, vertex=True)
-            importedVertices = len(data['blendWeights'])
-            if meshVertices != importedVertices:
-                pm.displayWarning('Vertex counts do not match. %d != %d' %
-                        (meshVertices, importedVertices))
-                continue
+            try:
+                meshVertices = pm.polyEvaluate(objNode, vertex=True)
+                importedVertices = len(data['blendWeights'])
+                if meshVertices != importedVertices:
+                    pm.displayWarning('Vertex counts do not match. %d != %d' %
+                                      (meshVertices, importedVertices))
+                    continue
+            except:
+                pass
 
             if  getSkinCluster(objNode):
                 skinCluster = getSkinCluster(objNode)
@@ -290,8 +371,7 @@ def importSkin(filePath=None, *args):
                     skinCluster = pm.skinCluster(joints, objNode, tsb=True, nw=2, n=data['skinClsName'])
                 except:
                     notFound = data['weights'].keys()
-                    sceneJoints = set([pm.PyNode(x).name()
-                              for x in pm.ls(type='joint')])
+                    sceneJoints = set([pm.PyNode(x).name() for x in pm.ls(type='joint')])
 
                     for j in notFound:
                         if j in sceneJoints:
@@ -305,6 +385,22 @@ def importSkin(filePath=None, *args):
 
         except:
             pm.displayWarning("Object: " + objName + " Skiped. Can NOT be found in the scene" )
+
+
+def importSkinPack(filePath=None, *args):
+    if not filePath:
+        startDir = pm.workspace(q=True, rootDirectory=True)
+        filePath = pm.fileDialog2(dialogStyle=2, fileMode=1, startingDirectory=startDir,
+                                    fileFilter='mGear skinPack (*%s)' % PACK_EXT)
+    if not filePath:
+        return
+    if not isinstance(filePath, basestring):
+        filePath = filePath[0]
+
+    packDic = json.load(open(filePath))
+    for pFile in packDic["packFiles"]:
+        filePath = os.path.join(os.path.split(filePath)[0], pFile)
+        importSkin(filePath, True)
 
 ######################################
 ##   Skin Copy
@@ -351,6 +447,3 @@ def selectDeformers(*args):
             pm.displayError("Select one object with skinCluster")
     else:
         pm.displayWarning("Select one object with skinCluster")
-
-
-

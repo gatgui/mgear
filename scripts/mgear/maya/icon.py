@@ -782,6 +782,9 @@ def guideRootIcon(parent=None, name="root", width=.5,  color=[0,0,0], m=dt.Matri
 
     att.setNotKeyableAttributes(rootIco)
     rootIco.addAttr("isGearGuide", at="bool", dv=True)
+    # Set the control shapes isHistoricallyInteresting
+    for oShape in rootIco.getShapes():
+        oShape.isHistoricallyInteresting.set(False)
 
     return rootIco
 
@@ -815,6 +818,9 @@ def guideLocatorIcon(parent=None, name="locator", width=.5, color=[0,0,0], m=dt.
 
     att.setNotKeyableAttributes(rootIco)
     rootIco.addAttr("isGearGuide", at="bool", dv=True)
+    # Set the control shapes isHistoricallyInteresting
+    for oShape in rootIco.getShapes():
+        oShape.isHistoricallyInteresting.set(False)
 
     return rootIco
 
@@ -851,6 +857,9 @@ def guideBladeIcon(parent=None, name="blade",lenX=1.0, color=[0,0,0], m=dt.Matri
     setcolor(bladeIco, color)
 
     att.setNotKeyableAttributes(bladeIco)
+    # Set the control shapes isHistoricallyInteresting
+    for oShape in bladeIco.getShapes():
+        oShape.isHistoricallyInteresting.set(False)
 
     return bladeIco
 
@@ -901,9 +910,13 @@ def setcolor(node, color):
     #TODO: configure this funcion to work with RGB or Index color base on Maya version.
     # version = mgear.maya.getMayaver()
 
-    if not isinstance(color, int):
-        return
+    if isinstance(color, int):
 
-    for shp in node.listRelatives(shapes=True):
-        shp.setAttr("overrideEnabled", True)
-        shp.setAttr("overrideColor", color)
+        for shp in node.listRelatives(shapes=True):
+            shp.setAttr("overrideEnabled", True)
+            shp.setAttr("overrideColor", color)
+    else:
+        for shp in node.listRelatives(shapes=True):
+            shp.overrideEnabled.set(1)
+            shp.overrideRGBColors.set(1)
+            shp.overrideColorRGB.set(color[0],color[1],color[2])

@@ -70,13 +70,13 @@ class Component(MainComponent):
 
         self.heel_loc = pri.addTransform(self.out_piv, self.getName("heel_loc"), t)
         att.setRotOrder(self.heel_loc, "YZX")
-        self.heel_ctl = self.addCtl(self.heel_loc, "heel_ctl", t, self.color_ik, "sphere", w=self.size*.1)
+        self.heel_ctl = self.addCtl(self.heel_loc, "heel_ctl", t, self.color_ik, "sphere", w=self.size*.1, tp=self.parentCtlTag)
         att.setKeyableAttributes(self.heel_ctl, self.r_params)
 
         # Tip ----------------------------------------------
         v = dt.Vector(self.guide.apos[-5].x,self.guide.apos[-1].y,self.guide.apos[-5].z)
         t = tra.setMatrixPosition(t, v)
-        self.tip_ctl = self.addCtl(self.heel_ctl, "tip_ctl", t, self.color_ik, "circle", w=self.size)
+        self.tip_ctl = self.addCtl(self.heel_ctl, "tip_ctl", t, self.color_ik, "circle", w=self.size, tp=self.heel_ctl)
         att.setKeyableAttributes(self.tip_ctl, self.r_params)
 
         # Roll ---------------------------------------------
@@ -85,7 +85,7 @@ class Component(MainComponent):
             t = tra.setMatrixPosition(t, self.guide.pos["root"])
 
             self.roll_np = pri.addTransform(self.root, self.getName("roll_npo"), t)
-            self.roll_ctl = self.addCtl(self.roll_np, "roll_ctl", t, self.color_ik, "cylinder", w=self.size*.5, h=self.size*.5, ro=dt.Vector(3.1415*.5,0,0))
+            self.roll_ctl = self.addCtl(self.roll_np, "roll_ctl", t, self.color_ik, "cylinder", w=self.size*.5, h=self.size*.5, ro=dt.Vector(3.1415*.5,0,0), tp=self.tip_ctl)
             att.setKeyableAttributes(self.roll_ctl, ["rx", "rz"])
 
         # Backward Controlers ------------------------------
@@ -94,6 +94,7 @@ class Component(MainComponent):
         parent = self.tip_ctl
         self.bk_ctl = []
         self.bk_loc = []
+        self.previousTag = self.tip_ctl
         for i, pos in enumerate(bk_pos):
 
             if i == 0:
@@ -104,8 +105,9 @@ class Component(MainComponent):
                 t = tra.getTransformLookingAt(pos, dir, self.normal, "xz", self.negate)
 
             bk_loc = pri.addTransform(parent, self.getName("bk%s_loc"%i), t)
-            bk_ctl = self.addCtl(bk_loc, "bk%s_ctl"%i, t, self.color_ik, "sphere", w=self.size*.15)
+            bk_ctl = self.addCtl(bk_loc, "bk%s_ctl"%i, t, self.color_ik, "sphere", w=self.size*.15, tp=self.previousTag)
             att.setKeyableAttributes(bk_ctl, self.r_params)
+            self.previousTag = bk_ctl
 
             self.bk_loc.append(bk_loc)
             self.bk_ctl.append(bk_ctl)
@@ -119,13 +121,14 @@ class Component(MainComponent):
         self.fk_ctl = []
         self.fk_loc = []
         parent = self.fk_npo
+        self.previousTag = self.tip_ctl
         for i, bk_ctl in enumerate(reversed(self.bk_ctl[1:])):
             t = tra.getTransform(bk_ctl)
             dist = vec.getDistance(self.guide.apos[i+1], self.guide.apos[i+2])
 
-            # fk_npo = pri.addTransform(parent, self.getName("fk%s_npo"%i), t)
             fk_loc = pri.addTransform(parent, self.getName("fk%s_loc"%i), t)
-            fk_ctl = self.addCtl(fk_loc, "fk%s_ctl"%i, t, self.color_fk, "cube", w=dist, h=self.size*.5, d=self.size*.5, po=dt.Vector(dist*.5*self.n_factor,0,0))
+            fk_ctl = self.addCtl(fk_loc, "fk%s_ctl"%i, t, self.color_fk, "cube", w=dist, h=self.size*.5, d=self.size*.5, po=dt.Vector(dist*.5*self.n_factor,0,0), tp=self.previousTag)
+            self.previousTag = fk_ctl
             att.setKeyableAttributes(fk_ctl)
             self.jnt_pos.append([fk_ctl, i])
 
@@ -207,6 +210,7 @@ class Component(MainComponent):
             node = aop.gear_inverseRotorder_op(bk_ctl, fk_ctl)
             pm.connectAttr(node+".output", bk_loc.attr("ro"))
             pm.connectAttr(fk_ctl.attr("ro"), fk_loc.attr("ro"))
+            att.lockAttribute(bk_ctl, "ro")
 
 
             # Compensate the backward rotation
@@ -239,6 +243,11 @@ class Component(MainComponent):
         self.relatives["inpivot"] = self.fk_ctl[0]
         self.relatives["outpivot"] = self.fk_ctl[0]
 
+        self.controlRelatives["root"] = self.fk_ctl[0]
+        self.controlRelatives["heel"] = self.fk_ctl[0]
+        self.controlRelatives["inpivot"] = self.fk_ctl[0]
+        self.controlRelatives["outpivot"] = self.fk_ctl[0]
+
         self.jointRelatives["root"] = 0
         self.jointRelatives["heel"] = 0
         self.jointRelatives["inpivot"] = 0
@@ -251,11 +260,12 @@ class Component(MainComponent):
         if self.div_count > 0:
             self.relatives["%s_loc"%self.div_count] = self.fk_ctl[-1]
             self.jointRelatives["%s_loc"%self.div_count] = self.div_count-1
- 
+
     ## Add more connection definition to the set.
     # @param self
     def addConnection(self):
         self.connections["leg_2jnt_01"] = self.connect_leg_2jnt_01
+        self.connections["leg_ms_2jnt_01"] = self.connect_leg_ms_2jnt_01
         self.connections["leg_3jnt_01"] = self.connect_leg_3jnt_01
 
     ## leg connection definition.
@@ -270,6 +280,25 @@ class Component(MainComponent):
         pm.parent(self.root, self.parent_comp.ik_ctl)
         pm.parent(self.parent_comp.ik_ref, self.bk_ctl[-1])
         pm.parentConstraint(self.parent_comp.tws2_rot, self.fk_ref, maintainOffset=True)
+
+        return
+
+    def connect_leg_ms_2jnt_01(self):
+        # If the parent component hasn't been generated we skip the connection
+        if self.parent_comp is None:
+            return
+
+
+        pm.connectAttr(self.parent_comp.blend_att, self.blend_att)
+        pm.parent(self.root, self.parent_comp.ik_ctl)
+        pm.parent(self.parent_comp.ik_ref, self.bk_ctl[-1])
+        pm.parentConstraint(self.parent_comp.tws3_rot, self.fk_ref, maintainOffset=True)
+        cns = pm.scaleConstraint(self.parent_comp.fk_ref, self.parent_comp.ik_ref, self.fk_ref, wal = True)
+        bc_node = pm.createNode("blendColors")
+        pm.connectAttr(bc_node+".outputB",cns+".%sW0"%self.parent_comp.fk_ref)
+        pm.connectAttr(bc_node+".outputR",cns+".%sW1"%self.parent_comp.ik_ref)
+        pm.connectAttr(self.parent_comp.blend_att, bc_node+".blender")
+
 
         return
 
