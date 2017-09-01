@@ -263,7 +263,8 @@ class ComponentGuide(MainGuide):
             else:
                 node = dag.findChild(self.model, self.getName(name))
                 if not node:
-                    mgear.log("Object missing : %s"%name, mgear.sev_warning)
+                    mgear.log("Object missing : %s" % (
+                        self.getName(name)), mgear.sev_warning)
                     self.valid = False
                     continue
 
@@ -276,7 +277,8 @@ class ComponentGuide(MainGuide):
 
             node = dag.findChild(self.model, self.getName(name))
             if not node:
-                mgear.log("Object missing : %s"%name, mgear.sev_warning)
+                mgear.log("Object missing : %s" % (
+                    self.getName(name)), mgear.sev_warning)
                 self.valid = False
                 continue
 
