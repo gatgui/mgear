@@ -3,4 +3,4 @@
 	url = git://github.com/gatgui/excons
 [submodule "cvwrap"]
 	path = cvwrap
-	url = git://github.com/miquelcampos/cvwrap
+	url = git://github.com/gatgui/cvwrap
