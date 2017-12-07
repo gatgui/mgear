@@ -461,25 +461,30 @@ class Component(component.Main):
 
         # Ref
         if self.settings["ikrefarray"]:
-            ref_names = self.settings["ikrefarray"].split(",")
+            ref_names = self.get_valid_alias_list(
+                self.settings["ikrefarray"].split(","))
+
             if len(ref_names) > 1:
                 self.ikref_att = self.addAnimEnumParam(
                     "ikref",
                     "Ik Ref",
                     0,
-                    self.settings["ikrefarray"].split(","))
+                    ref_names)
 
         if self.settings["ikTR"]:
             ref_names = ["Auto", "ik_ctl"]
             if self.settings["ikrefarray"]:
-                ref_names = ref_names + self.settings["ikrefarray"].split(",")
+                ref_names = ref_names + self.get_valid_alias_list(
+                    self.settings["ikrefarray"].split(","))
+
             self.ikRotRef_att = self.addAnimEnumParam("ikRotRef",
                                                       "Ik Rot Ref",
                                                       0,
                                                       ref_names)
 
         if self.settings["upvrefarray"]:
-            ref_names = self.settings["upvrefarray"].split(",")
+            ref_names = self.get_valid_alias_list(
+                self.settings["upvrefarray"].split(","))
             ref_names = ["Auto"] + ref_names
             if len(ref_names) > 1:
                 self.upvref_att = self.addAnimEnumParam("upvref",
@@ -487,7 +492,8 @@ class Component(component.Main):
                                                         0, ref_names)
 
         if self.settings["pinrefarray"]:
-            ref_names = self.settings["pinrefarray"].split(",")
+            ref_names = self.get_valid_alias_list(
+                self.settings["pinrefarray"].split(","))
             ref_names = ["Auto"] + ref_names
             if len(ref_names) > 1:
                 self.pin_att = self.addAnimEnumParam("elbowref",
@@ -774,6 +780,12 @@ class Component(component.Main):
         self.controlRelatives["wrist"] = self.fk2_ctl
         self.controlRelatives["eff"] = self.fk2_ctl
 
+        # here is really don't needed because the name is the same as the alias
+        self.aliasRelatives["root"] = "root"
+        self.aliasRelatives["elbow"] = "elbow"
+        self.aliasRelatives["wrist"] = "wrist"
+        self.aliasRelatives["eff"] = "hand"
+
     def addConnection(self):
         """Add more connection definition to the set"""
 
@@ -787,21 +799,23 @@ class Component(component.Main):
             self.connectRef(self.settings["ikrefarray"], self.ik_cns)
             self.connectRef(self.settings["upvrefarray"], self.upv_cns, True)
 
-            if self.settings["ikrefarray"]:
-                ikRotRefArray = "Auto,ik_ctl," + self.settings["ikrefarray"]
-            else:
-                ikRotRefArray = "Auto,ik_ctl"
-            self.connectRef2(ikRotRefArray,
+            init_refNames = ["lower_arm", "ik_ctl"]
+            self.connectRef2(self.settings["ikrefarray"],
                              self.ikRot_cns,
                              self.ikRotRef_att,
-                             [self.ikRot_npo, self.ik_ctl], True)
+                             [self.ikRot_npo, self.ik_ctl],
+                             True,
+                             init_refNames)
         else:
             self.connect_standardWithIkRef()
 
         if self.settings["pinrefarray"]:
-            self.connectRef2(
-                "Auto," + self.settings["pinrefarray"], self.mid_cns,
-                self.pin_att, [self.ctrn_loc], False)
+            self.connectRef2(self.settings["pinrefarray"],
+                             self.mid_cns,
+                             self.pin_att,
+                             [self.ctrn_loc],
+                             False,
+                             ["Auto"])
 
     def connect_shoulder_01(self):
         """ Custom connection to be use with shoulder 01 component"""

@@ -393,7 +393,8 @@ class Component(component.Main):
 
         # Ref
         if self.settings["ikrefarray"]:
-            ref_names = self.settings["ikrefarray"].split(",")
+            ref_names = self.get_valid_alias_list(
+                self.settings["ikrefarray"].split(","))
             if len(ref_names) > 1:
                 self.ikref_att = self.addAnimEnumParam(
                     "ikref",
@@ -403,18 +404,30 @@ class Component(component.Main):
 
         ref_names = ["Auto", "ikFoot"]
         if self.settings["upvrefarray"]:
-            ref_names = ref_names + self.settings["upvrefarray"].split(",")
+            ref_names = ref_names + self.get_valid_alias_list(
+                self.settings["ikrefarray"].split(","))
         self.upvref_att = self.addAnimEnumParam(
             "upvref", "UpV Ref", 0, ref_names)
 
         if self.settings["pinrefarray"]:
-            ref_names = self.settings["pinrefarray"].split(",")
+            ref_names = self.get_valid_alias_list(
+                self.settings["pinrefarray"].split(","))
             ref_names = ["Auto"] + ref_names
             if len(ref_names) > 1:
                 self.pin_att = self.addAnimEnumParam("kneeref",
                                                      "Knee Ref",
                                                      0,
                                                      ref_names)
+        if self.validProxyChannels:
+            attribute.addProxyAttribute(
+                [self.blend_att, self.roundness_att],
+                [self.fk0_ctl,
+                    self.fk1_ctl,
+                    self.fk2_ctl,
+                    self.ik_ctl,
+                    self.upv_ctl])
+            attribute.addProxyAttribute(self.roll_att,
+                                        [self.ik_ctl, self.upv_ctl])
 
         # Setup ------------------------------------------
         # Eval Fcurve
@@ -638,16 +651,18 @@ class Component(component.Main):
         self.jointRelatives["ankle"] = len(self.div_cns)
         self.jointRelatives["eff"] = len(self.div_cns)
 
+        self.aliasRelatives["eff"] = "foot"
+
     def connect_standard(self):
         self.parent.addChild(self.root)
 
         # Set the Ik Reference
         self.connectRef(self.settings["ikrefarray"], self.ik_cns)
         if self.settings["upvrefarray"]:
-            self.connectRef("Auto,ikFoot," + self.settings["upvrefarray"],
+            self.connectRef("Auto,Foot," + self.settings["upvrefarray"],
                             self.upv_cns, True)
         else:
-            self.connectRef("Auto,ikFoot", self.upv_cns, True)
+            self.connectRef("Auto,Foot", self.upv_cns, True)
 
         if self.settings["pinrefarray"]:
             self.connectRef2("Auto," + self.settings["pinrefarray"],
