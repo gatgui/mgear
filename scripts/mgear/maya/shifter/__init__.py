@@ -318,10 +318,11 @@ class Rig(object):
         mgear.log("Finalize")
 
         # clean jnt_org --------------------------------------
-        mgear.log("Cleaning jnt org")
-        for jOrg in dag.findChildrenPartial(self.jnt_org, "org"):
-            if not jOrg.listRelatives(c=True):
-                pm.delete(jOrg)
+        if self.options["joint_rig"]:
+            mgear.log("Cleaning jnt org")
+            for jOrg in dag.findChildrenPartial(self.jnt_org, "org"):
+                if not jOrg.listRelatives(c=True):
+                    pm.delete(jOrg)
 
         # Groups ------------------------------------------
         mgear.log("Creating groups")
@@ -390,6 +391,9 @@ class Rig(object):
             dagNode: The Control.
 
         """
+        if "degree" not in kwargs.keys():
+            kwargs["degree"] = 1
+
         bufferName = name + "_controlBuffer"
         if bufferName in self.guide.controllers.keys():
             ctl_ref = self.guide.controllers[bufferName]

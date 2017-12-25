@@ -27,7 +27,7 @@ class Component(component.Main):
             self.autoBendChain = primitive.add2DChain(
                 self.root,
                 self.getName("autoBend%s_jnt"),
-                [self.guide.apos[0], self.guide.apos[1]],
+                [self.guide.apos[0], self.guide.apos[-1]],
                 self.guide.blades["blade"].z * -1,
                 False,
                 True)
@@ -38,20 +38,23 @@ class Component(component.Main):
         # Ik Controlers ------------------------------------
         t = transform.getTransformLookingAt(
             self.guide.apos[0],
-            self.guide.apos[1],
+            self.guide.apos[-1],
             self.guide.blades["blade"].z * -1,
             "yx",
             self.negate)
 
         self.ik0_npo = primitive.addTransform(
             self.root, self.getName("ik0_npo"), t)
-        self.ik0_ctl = self.addCtl(self.ik0_npo,
-                                   "ik0_ctl",
-                                   t,
-                                   self.color_ik,
-                                   "compas",
-                                   w=self.size,
-                                   tp=self.parentCtlTag)
+
+        self.ik0_ctl = self.addCtl(
+            self.ik0_npo,
+            "ik0_ctl",
+            t,
+            self.color_ik,
+            "compas",
+            w=self.size,
+            tp=self.parentCtlTag
+        )
 
         attribute.setKeyableAttributes(self.ik0_ctl, self.tr_params)
         attribute.setRotOrder(self.ik0_ctl, "ZXY")
@@ -64,19 +67,21 @@ class Component(component.Main):
                 self.ik0_ctl, self.getName("hip_lvl"), t)
             self.jnt_pos.append([self.hip_lvl, "hip"])
 
-        t = transform.setMatrixPosition(t, self.guide.apos[1])
+        t = transform.setMatrixPosition(t, self.guide.apos[-1])
         if self.settings["autoBend"]:
             self.autoBend_npo = primitive.addTransform(
                 self.root, self.getName("spinePosition_npo"), t)
 
-            self.autoBend_ctl = self.addCtl(self.autoBend_npo,
-                                            "spinePosition_ctl",
-                                            t,
-                                            self.color_ik,
-                                            "square",
-                                            w=self.size,
-                                            d=.3 * self.size,
-                                            tp=self.parentCtlTag)
+            self.autoBend_ctl = self.addCtl(
+                self.autoBend_npo,
+                "spinePosition_ctl",
+                t,
+                self.color_ik,
+                "square",
+                w=self.size,
+                d=.3 * self.size,
+                tp=self.parentCtlTag
+            )
 
             attribute.setKeyableAttributes(self.autoBend_ctl,
                                            ["tx", "ty", "tz", "ry"])
@@ -89,25 +94,29 @@ class Component(component.Main):
             self.ik1autoRot_lvl = primitive.addTransform(
                 self.ik1_npo, self.getName("ik1autoRot_lvl"), t)
 
-            self.ik1_ctl = self.addCtl(self.ik1autoRot_lvl,
-                                       "ik1_ctl",
-                                       t,
-                                       self.color_ik,
-                                       "compas",
-                                       w=self.size,
-                                       tp=self.autoBend_ctl)
+            self.ik1_ctl = self.addCtl(
+                self.ik1autoRot_lvl,
+                "ik1_ctl",
+                t,
+                self.color_ik,
+                "compas",
+                w=self.size,
+                tp=self.autoBend_ctl
+            )
         else:
-            t = transform.setMatrixPosition(t, self.guide.apos[1])
+            t = transform.setMatrixPosition(t, self.guide.apos[-1])
             self.ik1_npo = primitive.addTransform(
                 self.root, self.getName("ik1_npo"), t)
 
-            self.ik1_ctl = self.addCtl(self.ik1_npo,
-                                       "ik1_ctl",
-                                       t,
-                                       self.color_ik,
-                                       "compas",
-                                       w=self.size,
-                                       tp=self.ik0_ctl)
+            self.ik1_ctl = self.addCtl(
+                self.ik1_npo,
+                "ik1_ctl",
+                t,
+                self.color_ik,
+                "compas",
+                w=self.size,
+                tp=self.ik0_ctl
+            )
 
         attribute.setKeyableAttributes(self.ik1_ctl, self.tr_params)
         attribute.setRotOrder(self.ik1_ctl, "ZXY")
@@ -115,9 +124,10 @@ class Component(component.Main):
 
         # Tangent controllers -------------------------------
         if self.settings["centralTangent"]:
-            vec_pos = vector.linearlyInterpolate(self.guide.apos[0],
-                                                 self.guide.apos[1],
-                                                 .33)
+            # vec_pos = vector.linearlyInterpolate(self.guide.apos[0],
+            #                                      self.guide.apos[-1],
+            #                                      .33)
+            vec_pos = self.guide.pos["tan0"]
             t = transform.setMatrixPosition(t, vec_pos)
 
             self.tan0_npo = primitive.addTransform(
@@ -126,19 +136,21 @@ class Component(component.Main):
             self.tan0_off = primitive.addTransform(
                 self.tan0_npo, self.getName("tan0_off"), t)
 
-            self.tan0_ctl = self.addCtl(self.tan0_off,
-                                        "tan0_ctl",
-                                        t,
-                                        self.color_ik,
-                                        "sphere",
-                                        w=self.size * .1,
-                                        tp=self.ik0_ctl)
+            self.tan0_ctl = self.addCtl(
+                self.tan0_off,
+                "tan0_ctl",
+                t,
+                self.color_ik,
+                "sphere",
+                w=self.size * .1,
+                tp=self.ik0_ctl
+            )
 
             attribute.setKeyableAttributes(self.tan0_ctl, self.t_params)
-            vec_pos = vector.linearlyInterpolate(self.guide.apos[0],
-                                                 self.guide.apos[1],
-                                                 .66)
-
+            # vec_pos = vector.linearlyInterpolate(self.guide.apos[0],
+            #                                      self.guide.apos[-1],
+            #                                      .66)
+            vec_pos = self.guide.pos["tan1"]
             t = transform.setMatrixPosition(t, vec_pos)
 
             self.tan1_npo = primitive.addTransform(
@@ -147,72 +159,80 @@ class Component(component.Main):
             self.tan1_off = primitive.addTransform(
                 self.tan1_npo, self.getName("tan1_off"), t)
 
-            self.tan1_ctl = self.addCtl(self.tan1_off,
-                                        "tan1_ctl",
-                                        t,
-                                        self.color_ik,
-                                        "sphere",
-                                        w=self.size * .1,
-                                        tp=self.ik0_ctl)
+            self.tan1_ctl = self.addCtl(
+                self.tan1_off,
+                "tan1_ctl",
+                t,
+                self.color_ik,
+                "sphere",
+                w=self.size * .1,
+                tp=self.ik0_ctl
+            )
 
             attribute.setKeyableAttributes(self.tan1_ctl, self.t_params)
 
             # Tangent mid control
             vec_pos = vector.linearlyInterpolate(self.guide.apos[0],
-                                                 self.guide.apos[1],
+                                                 self.guide.apos[-1],
                                                  .5)
             t = transform.setMatrixPosition(t, vec_pos)
 
             self.tan_npo = primitive.addTransform(
                 self.tan0_npo, self.getName("tan_npo"), t)
 
-            self.tan_ctl = self.addCtl(self.tan_npo,
-                                       "tan_ctl",
-                                       t,
-                                       self.color_fk,
-                                       "sphere",
-                                       w=self.size * .2,
-                                       tp=self.ik1_ctl)
+            self.tan_ctl = self.addCtl(
+                self.tan_npo,
+                "tan_ctl",
+                t,
+                self.color_fk,
+                "sphere",
+                w=self.size * .2,
+                tp=self.ik1_ctl
+            )
 
             attribute.setKeyableAttributes(self.tan_ctl, self.t_params)
             attribute.setInvertMirror(self.tan_ctl, ["tx"])
 
         else:
-            vec_pos = vector.linearlyInterpolate(self.guide.apos[0],
-                                                 self.guide.apos[1],
-                                                 .33)
-
+            # vec_pos = vector.linearlyInterpolate(self.guide.apos[0],
+            #                                      self.guide.apos[-1],
+            #                                      .33)
+            vec_pos = self.guide.pos["tan0"]
             t = transform.setMatrixPosition(t, vec_pos)
 
             self.tan0_npo = primitive.addTransform(
                 self.ik0_ctl, self.getName("tan0_npo"), t)
 
-            self.tan0_ctl = self.addCtl(self.tan0_npo,
-                                        "tan0_ctl",
-                                        t,
-                                        self.color_ik,
-                                        "sphere",
-                                        w=self.size * .2,
-                                        tp=self.ik0_ctl)
+            self.tan0_ctl = self.addCtl(
+                self.tan0_npo,
+                "tan0_ctl",
+                t,
+                self.color_ik,
+                "sphere",
+                w=self.size * .2,
+                tp=self.ik0_ctl
+            )
 
             attribute.setKeyableAttributes(self.tan0_ctl, self.t_params)
 
-            vec_pos = vector.linearlyInterpolate(self.guide.apos[0],
-                                                 self.guide.apos[1],
-                                                 .66)
-
+            # vec_pos = vector.linearlyInterpolate(self.guide.apos[0],
+            #                                      self.guide.apos[-1],
+            #                                      .66)
+            vec_pos = self.guide.pos["tan1"]
             t = transform.setMatrixPosition(t, vec_pos)
 
             self.tan1_npo = primitive.addTransform(
                 self.ik1_ctl, self.getName("tan1_npo"), t)
 
-            self.tan1_ctl = self.addCtl(self.tan1_npo,
-                                        "tan1_ctl",
-                                        t,
-                                        self.color_ik,
-                                        "sphere",
-                                        w=self.size * .2,
-                                        tp=self.ik1_ctl)
+            self.tan1_ctl = self.addCtl(
+                self.tan1_npo,
+                "tan1_ctl",
+                t,
+                self.color_ik,
+                "sphere",
+                w=self.size * .2,
+                tp=self.ik1_ctl
+            )
 
             attribute.setKeyableAttributes(self.tan1_ctl, self.t_params)
 
@@ -225,10 +245,12 @@ class Component(component.Main):
             self.getName("mst_crv"),
             [self.ik0_ctl, self.tan0_ctl, self.tan1_ctl, self.ik1_ctl],
             3)
-        self.slv_crv = curve.addCurve(self.root, self.getName("slv_crv"),
-                                      [datatypes.Vector()] * 10,
-                                      False,
-                                      3)
+        self.slv_crv = curve.addCurve(
+            self.root, self.getName("slv_crv"),
+            [datatypes.Vector()] * 10,
+            False,
+            3
+        )
         self.mst_crv.setAttr("visibility", False)
         self.slv_crv.setAttr("visibility", False)
 
@@ -246,7 +268,7 @@ class Component(component.Main):
 
         t = transform.getTransformLookingAt(
             self.guide.apos[0],
-            self.guide.apos[1],
+            self.guide.apos[-1],
             self.guide.blades["blade"].z * -1,
             "yx",
             self.negate)
@@ -282,20 +304,46 @@ class Component(component.Main):
                 if i in [self.settings["division"] - 1]:
                     self.fk_ctl.append(fk_ctl)
             else:
+                m = transform.getTransform(self.root)
+                t = transform.getTransform(parentctl)
+                m.inverse()
+
+                t *= m
+
+                # m = transform.setMatrixPosition(m, parentctl.getTranslation())
+                # m.setTranslation(parentctl.getTranslation)
+                # m = transform.setMatrixScale(m)
+
+                # m = transform.getSymmetricalTransform(transform.getTransform(parentctl), axis='xy')
+
+                # fk_npo = pm.PyNode(pm.createNode("transform", n=self.getName("fk%s_npo" % (i))))
+                # fk_npo.setMatrix(m, worldSpace=True)
+                #
+                # parentctl.addChild(fk_npo)
+
                 fk_npo = primitive.addTransform(
                     parentctl,
                     self.getName("fk%s_npo" % (i)),
-                    transform.getTransform(parentctl))
+                    t
+                )
 
-                fk_ctl = self.addCtl(fk_npo,
-                                     "fk%s_ctl" % (i),
-                                     transform.getTransform(parentctl),
-                                     self.color_fk,
-                                     "cube",
-                                     w=self.size,
-                                     h=self.size * .05,
-                                     d=self.size,
-                                     tp=self.preiviousCtlTag)
+                # fk_npo = primitive.addTransform(
+                #     parentctl,
+                #     self.getName("fk%s_npo" % (i)),
+                #     transform.getTransform(parentctl)
+                # )
+
+                fk_ctl = self.addCtl(
+                    fk_npo,
+                    "fk%s_ctl" % (i),
+                    transform.getTransform(parentctl),
+                    self.color_fk,
+                    "cube",
+                    w=self.size,
+                    h=self.size * .05,
+                    d=self.size,
+                    tp=self.preiviousCtlTag
+                )
 
                 attribute.setKeyableAttributes(self.fk_ctl)
                 attribute.setRotOrder(fk_ctl, "ZXY")
@@ -305,9 +353,11 @@ class Component(component.Main):
             # setAttr(fk_npo+".inheritsTransform", False)
             self.fk_npo.append(fk_npo)
             parentctl = fk_ctl
-            scl_ref = primitive.addTransform(parentctl,
-                                             self.getName("%s_scl_ref" % i),
-                                             transform.getTransform(parentctl))
+            scl_ref = primitive.addTransform(
+                parentctl,
+                self.getName("%s_scl_ref" % i),
+                transform.getTransform(parentctl)
+            )
 
             self.scl_transforms.append(scl_ref)
 
@@ -318,7 +368,7 @@ class Component(component.Main):
             # slerp solver behavior)
             t = transform.getTransformLookingAt(
                 self.guide.apos[0],
-                self.guide.apos[1],
+                self.guide.apos[-1],
                 self.guide.blades["blade"].z * -1,
                 "yx",
                 self.negate)
@@ -446,7 +496,7 @@ class Component(component.Main):
 
         # Tangent position ---------------------------------
         # common part
-        d = vector.getDistance(self.guide.apos[0], self.guide.apos[1])
+        d = vector.getDistance(self.guide.apos[0], self.guide.apos[-1])
         dist_node = node.createDistNode(self.ik0_ctl, self.ik1_ctl)
         rootWorld_node = node.createDecomposeMatrixNode(
             self.root.attr("worldMatrix"))

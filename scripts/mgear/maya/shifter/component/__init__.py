@@ -215,7 +215,12 @@ class Main(object):
         """
         return
 
-    def addJoint(self, obj, name, newActiveJnt=None, UniScale=True, segComp=0,
+    def addJoint(self,
+                 obj,
+                 name,
+                 newActiveJnt=None,
+                 UniScale=False,
+                 segComp=0,
                  gearMulMatrix=True):
         """Add joint as child of the active joint or under driver object.
 
@@ -243,6 +248,10 @@ class Main(object):
 
             jnt = primitive.addJoint(self.active_jnt, self.getName(
                 str(name) + "_jnt"), transform.getTransform(obj))
+
+            # Disconnect inversScale for better preformance
+            if isinstance(self.active_jnt, pm.nodetypes.Joint):
+                pm.disconnectAttr(self.active_jnt.scale, jnt.inverseScale)
             # All new jnts are the active by default
             self.active_jnt = jnt
 
@@ -335,6 +344,42 @@ class Main(object):
 
         return vector.getPlaneBiNormal(pos[0], pos[1], pos[2])
 
+    def add_controller_tag(self, ctl, tagParent):
+        """Add a controller tag
+
+        Args:
+            ctl (dagNode): Controller to add the tar
+            tagParent (dagNode): tag parent for the connection
+        """
+        ctt = pm.PyNode(pm.controller(ctl, q=True)[0])
+        tpTagNode = pm.PyNode(pm.controller(tagParent, q=True)[0])
+        tpTagNode.cycleWalkSibling.set(True)
+        pm.connectAttr(tpTagNode.prepopulate, ctt.prepopulate, f=True)
+        # The connectAttr to the children attribute is giving error
+        # i.e: pm.connectAttr(ctt.attr("parent"),
+        #                      tpTagNode.attr("children"), na=True)
+        # if using the next available option tag
+        # I was expecting to use ctt.setParent(tagParent) but doest't work as
+        # expected.
+        # After reading the documentation this method looks prety
+        # useless.
+        # Looks like is boolean and works based on selection :(
+
+        # this is a dirty loop workaround. Naaah!
+        i = 0
+        while True:
+            try:
+                pm.connectAttr(ctt.parent, tpTagNode.attr(
+                    "children[%s]" % str(i)))
+                break
+            except RuntimeError:
+                i += 1
+                if i > 100:
+                    pm.displayWarning(
+                        "The controller tag for %s has reached the "
+                        "limit index of 100 children" % ctl.name())
+                    break
+
     def addCtl(self,
                parent,
                name,
@@ -364,6 +409,9 @@ class Main(object):
             dagNode: The Control.
 
         """
+        if "degree" not in kwargs.keys():
+            kwargs["degree"] = 1
+
         fullName = self.getName(name)
         bufferName = fullName + "_controlBuffer"
         if bufferName in self.rig.guide.controllers.keys():
@@ -374,7 +422,8 @@ class Main(object):
                 pm.rename(shape, fullName + "Shape")
             icon.setcolor(ctl, color)
         else:
-            ctl = icon.create(parent, fullName, m, color, iconShape, **kwargs)
+            ctl = icon.create(
+                parent, fullName, m, color, iconShape, **kwargs)
 
         # create the attributes to handlde mirror and symetrical pose
         attribute.addAttribute(ctl, "invTx", "bool", 0, keyable=False,
@@ -430,34 +479,7 @@ class Main(object):
             pm.controller(ctl)
 
             if tp:
-                ctt = pm.PyNode(pm.controller(ctl, q=True)[0])
-                tpTagNode = pm.PyNode(pm.controller(tp, q=True)[0])
-                tpTagNode.cycleWalkSibling.set(True)
-                pm.connectAttr(tpTagNode.prepopulate, ctt.prepopulate, f=True)
-                # The connectAttr to the children attribute is giving error
-                # i.e: pm.connectAttr(ctt.attr("parent"),
-                #                      tpTagNode.attr("children"), na=True)
-                # if using the next available option tag
-                # I was expecting to use ctt.setParent(tp) but doest't work as
-                # expected.
-                # After reading the documentation this method looks prety
-                # useless.
-                # Looks like is boolean and works based on selection :(
-
-                # this is a dirty loop workaround. Naaah!
-                i = 0
-                while True:
-                    try:
-                        pm.connectAttr(ctt.parent, tpTagNode.attr(
-                            "children[%s]" % str(i)))
-                        break
-                    except RuntimeError:
-                        i += 1
-                        if i > 100:
-                            pm.displayWarning(
-                                "The controller tag for %s has reached the "
-                                "limit index of 100 children" % ctl.name())
-                            break
+                self.add_controller_tag(ctl, tp)
 
         return ctl
 
@@ -841,10 +863,11 @@ class Main(object):
         if self.settings["connector"] not in self.connections.keys():
             mgear.log("Unable to connect object", mgear.sev_error)
             return False
-
-        self.connections[self.settings["connector"]]()
-
-        return True
+        try:
+            self.connections[self.settings["connector"]]()
+            return True
+        except AttributeError:
+            return False
 
     def connect_standard(self):
         """Standard Connection
@@ -969,19 +992,24 @@ class Main(object):
                 cns_attr = pm.parentConstraint(
                     cns_node, query=True, weightAliasList=True)
                 # check if the ref Array is for IK or Up vector
-                if upVAttr:
-                    oAttr = self.upvref_att
-                else:
-                    oAttr = self.ikref_att
+                try:
+                    if upVAttr:
+                        oAttr = self.upvref_att
+                    else:
+                        oAttr = self.ikref_att
 
-                for i, attr in enumerate(cns_attr):
-                    node_name = pm.createNode("condition")
-                    pm.connectAttr(oAttr, node_name + ".firstTerm")
-                    pm.setAttr(node_name + ".secondTerm", i)
-                    pm.setAttr(node_name + ".operation", 0)
-                    pm.setAttr(node_name + ".colorIfTrueR", 1)
-                    pm.setAttr(node_name + ".colorIfFalseR", 0)
-                    pm.connectAttr(node_name + ".outColorR", attr)
+                except AttributeError:
+                    oAttr = None
+
+                if oAttr:
+                    for i, attr in enumerate(cns_attr):
+                        node_name = pm.createNode("condition")
+                        pm.connectAttr(oAttr, node_name + ".firstTerm")
+                        pm.setAttr(node_name + ".secondTerm", i)
+                        pm.setAttr(node_name + ".operation", 0)
+                        pm.setAttr(node_name + ".colorIfTrueR", 1)
+                        pm.setAttr(node_name + ".colorIfFalseR", 0)
+                        pm.connectAttr(node_name + ".outColorR", attr)
 
     def connectRef2(self,
                     refArray,
@@ -1010,7 +1038,7 @@ class Main(object):
                 ref_names = self.get_valid_ref_list(refArray.split(","))
             else:
                 ref_names = refArray.split(",")
-            if len(ref_names) == 1:
+            if len(ref_names) == 1 and not init_refNames:
                 ref = self.rig.findRelative(ref_names[0])
                 pm.parent(cns_obj, ref)
             else:
@@ -1169,7 +1197,7 @@ class Main(object):
             if len(jpo) == 4 and self.options["joint_rig"]:
                 uniScale = jpo[3]
             else:
-                uniScale = True
+                uniScale = False
             # handle the matrix node connection
             if len(jpo) == 5 and self.options["joint_rig"]:
                 gearMulMatrix = jpo[4]
