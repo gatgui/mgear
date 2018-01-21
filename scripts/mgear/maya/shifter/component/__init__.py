@@ -248,10 +248,18 @@ class Main(object):
 
             jnt = primitive.addJoint(self.active_jnt, self.getName(
                 str(name) + "_jnt"), transform.getTransform(obj))
+            # TODO: Set the joint to have always positive scaling
+            # jnt.scale.set([1, 1, 1])
 
             # Disconnect inversScale for better preformance
             if isinstance(self.active_jnt, pm.nodetypes.Joint):
-                pm.disconnectAttr(self.active_jnt.scale, jnt.inverseScale)
+                try:
+                    pm.disconnectAttr(self.active_jnt.scale, jnt.inverseScale)
+
+                except RuntimeError:
+                    # This handle the situation where we have in between joints
+                    # transformation due a negative scaling
+                    pm.ungroup(jnt.getParent())
             # All new jnts are the active by default
             self.active_jnt = jnt
 
@@ -295,11 +303,26 @@ class Main(object):
             im = m.inverse()
 
             if gearMulMatrix:
-                applyop.gear_mulmatrix_op(mulmat_node.attr('output'),
-                                          im, jnt, 'r')
+                mul_nod = applyop.gear_mulmatrix_op(
+                    mulmat_node.attr('output'), im, jnt, 'r')
+                dm_node2 = mul_nod.output.listConnections()[0]
             else:
-                node.createMultMatrixNode(
+                mul_nod = node.createMultMatrixNode(
                     mulmat_node.attr('matrixSum'), im, jnt, 'r')
+                dm_node2 = mul_nod.matrixSum.listConnections()[0]
+
+            if jnt.attr("sz").get() < 0:
+                # if negative scaling we have to negate some axis for rotation
+                neg_rot_node = pm.createNode("multiplyDivide")
+                pm.setAttr(neg_rot_node + ".operation", 1)
+                pm.connectAttr(dm_node2.outputRotate,
+                               neg_rot_node + ".input1",
+                               f=True)
+                for v, axis in zip([-1, -1, 1], "XYZ"):
+                    pm.setAttr(neg_rot_node + ".input2" + axis, v)
+                pm.connectAttr(neg_rot_node + ".output",
+                               jnt + ".r",
+                               f=True)
 
         else:
             jnt = primitive.addJoint(obj, self.getName(
@@ -345,40 +368,7 @@ class Main(object):
         return vector.getPlaneBiNormal(pos[0], pos[1], pos[2])
 
     def add_controller_tag(self, ctl, tagParent):
-        """Add a controller tag
-
-        Args:
-            ctl (dagNode): Controller to add the tar
-            tagParent (dagNode): tag parent for the connection
-        """
-        ctt = pm.PyNode(pm.controller(ctl, q=True)[0])
-        tpTagNode = pm.PyNode(pm.controller(tagParent, q=True)[0])
-        tpTagNode.cycleWalkSibling.set(True)
-        pm.connectAttr(tpTagNode.prepopulate, ctt.prepopulate, f=True)
-        # The connectAttr to the children attribute is giving error
-        # i.e: pm.connectAttr(ctt.attr("parent"),
-        #                      tpTagNode.attr("children"), na=True)
-        # if using the next available option tag
-        # I was expecting to use ctt.setParent(tagParent) but doest't work as
-        # expected.
-        # After reading the documentation this method looks prety
-        # useless.
-        # Looks like is boolean and works based on selection :(
-
-        # this is a dirty loop workaround. Naaah!
-        i = 0
-        while True:
-            try:
-                pm.connectAttr(ctt.parent, tpTagNode.attr(
-                    "children[%s]" % str(i)))
-                break
-            except RuntimeError:
-                i += 1
-                if i > 100:
-                    pm.displayWarning(
-                        "The controller tag for %s has reached the "
-                        "limit index of 100 children" % ctl.name())
-                    break
+        node.add_controller_tag(ctl, tagParent)
 
     def addCtl(self,
                parent,
@@ -426,24 +416,7 @@ class Main(object):
                 parent, fullName, m, color, iconShape, **kwargs)
 
         # create the attributes to handlde mirror and symetrical pose
-        attribute.addAttribute(ctl, "invTx", "bool", 0, keyable=False,
-                               niceName="Invert Mirror TX")
-        attribute.addAttribute(ctl, "invTy", "bool", 0, keyable=False,
-                               niceName="Invert Mirror TY")
-        attribute.addAttribute(ctl, "invTz", "bool", 0, keyable=False,
-                               niceName="Invert Mirror TZ")
-        attribute.addAttribute(ctl, "invRx", "bool", 0, keyable=False,
-                               niceName="Invert Mirror RX")
-        attribute.addAttribute(ctl, "invRy", "bool", 0, keyable=False,
-                               niceName="Invert Mirror RY")
-        attribute.addAttribute(ctl, "invRz", "bool", 0, keyable=False,
-                               niceName="Invert Mirror RZ")
-        attribute.addAttribute(ctl, "invSx", "bool", 0, keyable=False,
-                               niceName="Invert Mirror SX")
-        attribute.addAttribute(ctl, "invSy", "bool", 0, keyable=False,
-                               niceName="Invert Mirror SY")
-        attribute.addAttribute(ctl, "invSz", "bool", 0, keyable=False,
-                               niceName="Invert Mirror SZ")
+        attribute.add_mirror_config_channels(ctl)
 
         if self.settings["ctlGrp"]:
             ctlGrp = self.settings["ctlGrp"]
@@ -476,10 +449,8 @@ class Main(object):
 
             except TypeError:
                 pass
-            pm.controller(ctl)
 
-            if tp:
-                self.add_controller_tag(ctl, tp)
+            self.add_controller_tag(ctl, tp)
 
         return ctl
 
