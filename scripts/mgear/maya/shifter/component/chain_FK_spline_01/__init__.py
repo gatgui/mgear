@@ -31,6 +31,15 @@ class Component(component.Main):
             self.negate = False
             self.n_factor = 1
 
+        if self.settings["overrideNegate"]:
+            self.mirror_conf = [0, 0, 1,
+                                1, 1, 0,
+                                0, 0, 0]
+        else:
+            self.mirror_conf = [0, 0, 0,
+                                0, 0, 0,
+                                0, 0, 0]
+
         # FK controllers ------------------------------------
         self.fk_npo = []
         self.fk_ctl = []
@@ -66,7 +75,8 @@ class Component(component.Main):
                 h=self.size * .1,
                 d=self.size * .1,
                 po=datatypes.Vector(self.dist * .5 * self.n_factor, 0, 0),
-                tp=self.previusTag)
+                tp=self.previusTag,
+                mirrorConf=self.mirror_conf)
 
             tweak_ctl = self.addCtl(
                 fk_ctl,
@@ -78,7 +88,8 @@ class Component(component.Main):
                 h=self.size * .15,
                 d=self.size * .15,
                 ro=datatypes.Vector([0, 0, 1.5708]),
-                tp=self.previusTag)
+                tp=self.previusTag,
+                mirrorConf=self.mirror_conf)
 
             upv_curv_lvl = primitive.addTransform(
                 tweak_ctl, self.getName("upv%s_lvl" % i), t)
@@ -107,7 +118,8 @@ class Component(component.Main):
             h=self.size * .15,
             d=self.size * .15,
             ro=datatypes.Vector([0, 0, 1.5708]),
-            tp=self.previusTag)
+            tp=self.previusTag,
+            mirrorConf=self.mirror_conf)
 
         upv_curv_lvl = primitive.addTransform(
             tweak_ctl, self.getName("upvEnd_lvl"), t)
@@ -137,7 +149,8 @@ class Component(component.Main):
                 h=self.size * .1,
                 d=self.size * .1,
                 ro=datatypes.Vector([0, 0, 1.5708]),
-                tp=self.previusTag)
+                tp=self.previusTag,
+                mirrorConf=self.mirror_conf)
 
             upv_curv_lvl = primitive.addTransform(
                 tweak_ctl, self.getName("upvTip_lvl"), t)
@@ -161,7 +174,7 @@ class Component(component.Main):
         # Curves -------------------------------------------
         self.mst_crv = curve.addCnsCurve(self.root,
                                          self.getName("mst_crv"),
-                                         self.tweak_ctl,
+                                         self.tweak_ctl[:],
                                          3)
 
         self.upv_crv = curve.addCnsCurve(self.root,
@@ -211,6 +224,13 @@ class Component(component.Main):
                                            "FK vis",
                                            "bool",
                                            True)
+        if self.settings["keepLength"]:
+            self.length_ratio_att = self.addAnimParam("length_ratio",
+                                                      "Length Ratio",
+                                                      "double",
+                                                      1,
+                                                      0.0001,
+                                                      10)
 
     # =====================================================
     # OPERATORS
@@ -227,10 +247,12 @@ class Component(component.Main):
         if self.settings["keepLength"]:
             arclen_node = pm.arclen(self.mst_crv, ch=True)
             alAttr = pm.getAttr(arclen_node + ".arcLength")
+            ration_node = node.createMulNode(self.length_ratio_att,
+                                             alAttr)
 
             pm.addAttr(self.mst_crv, ln="length_ratio", k=True, w=True)
             node.createDivNode(arclen_node.arcLength,
-                               alAttr,
+                               ration_node.outputX,
                                self.mst_crv.length_ratio)
 
             div_node_scl = node.createDivNode(self.mst_crv.length_ratio,

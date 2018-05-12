@@ -2,6 +2,7 @@
 
 
 import pymel.core as pm
+from pymel import versions
 import pymel.core.datatypes as datatypes
 from . import attribute
 
@@ -884,35 +885,28 @@ def add_controller_tag(ctl, tagParent=None):
         ctl (dagNode): Controller to add the tar
         tagParent (dagNode): tag parent for the connection
     """
-    pm.controller(ctl)
-    ctt = pm.PyNode(pm.controller(ctl, q=True)[0])
-    if tagParent:
-        tpTagNode = pm.PyNode(pm.controller(tagParent, q=True)[0])
-        tpTagNode.cycleWalkSibling.set(True)
-        pm.connectAttr(tpTagNode.prepopulate, ctt.prepopulate, f=True)
-        # The connectAttr to the children attribute is giving error
-        # i.e: pm.connectAttr(ctt.attr("parent"),
-        #                      tpTagNode.attr("children"), na=True)
-        # if using the next available option tag
-        # I was expecting to use ctt.setParent(tagParent) but doest't work as
-        # expected.
-        # After reading the documentation this method looks prety
-        # useless.
-        # Looks like is boolean and works based on selection :(
+    if versions.current() >= 201650:
+        pm.controller(ctl)
+        ctt = pm.PyNode(pm.controller(ctl, q=True)[0])
+        if tagParent:
+            controller_tag_connect(ctt, tagParent)
 
-        # this is a dirty loop workaround. Naaah!
-        i = 0
-        while True:
-            try:
-                pm.connectAttr(ctt.parent, tpTagNode.attr(
-                    "children[%s]" % str(i)))
-                break
-            except RuntimeError:
-                i += 1
-                if i > 100:
-                    pm.displayWarning(
-                        "The controller tag for %s has reached the "
-                        "limit index of 100 children" % ctl.name())
-                    break
+        return ctt
 
-    return ctt
+
+def controller_tag_connect(ctt, tagParent):
+    """Summary
+
+    Args:
+        ctt (TYPE): Teh control tag
+        tagParent (TYPE): The object with the parent control tag
+    """
+
+    tpTagNode = pm.PyNode(pm.controller(tagParent, q=True)[0])
+    tpTagNode.cycleWalkSibling.set(True)
+    pm.connectAttr(tpTagNode.prepopulate, ctt.prepopulate, f=True)
+
+    ni = attribute.get_next_available_index(tpTagNode.children)
+    pm.disconnectAttr(ctt.parent)
+    pm.connectAttr(ctt.parent, tpTagNode.attr(
+                   "children[%s]" % str(ni)))

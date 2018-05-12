@@ -324,10 +324,14 @@ class Main(object):
                                jnt + ".r",
                                f=True)
 
+            # set not keyable
+            attribute.setNotKeyableAttributes(jnt)
+
         else:
             jnt = primitive.addJoint(obj, self.getName(
                 str(name) + "_jnt"), transform.getTransform(obj))
             pm.connectAttr(self.rig.jntVis_att, jnt.attr("visibility"))
+            attribute.lockAttribute(jnt)
 
         self.addToGroup(jnt, "deformers")
 
@@ -367,9 +371,6 @@ class Main(object):
 
         return vector.getPlaneBiNormal(pos[0], pos[1], pos[2])
 
-    def add_controller_tag(self, ctl, tagParent):
-        node.add_controller_tag(ctl, tagParent)
-
     def addCtl(self,
                parent,
                name,
@@ -378,7 +379,8 @@ class Main(object):
                iconShape,
                tp=None,
                lp=True,
-               **kwargs):
+               mirrorConf=[0, 0, 0, 0, 0, 0, 0, 0, 0],
+               ** kwargs):
         """
         Create the control and apply the shape, if this is alrealdy stored
         in the guide controllers grp.
@@ -416,7 +418,7 @@ class Main(object):
                 parent, fullName, m, color, iconShape, **kwargs)
 
         # create the attributes to handlde mirror and symetrical pose
-        attribute.add_mirror_config_channels(ctl)
+        attribute.add_mirror_config_channels(ctl, mirrorConf)
 
         if self.settings["ctlGrp"]:
             ctlGrp = self.settings["ctlGrp"]
@@ -453,6 +455,9 @@ class Main(object):
             self.add_controller_tag(ctl, tp)
 
         return ctl
+
+    def add_controller_tag(self, ctl, tagParent):
+        self.rig.add_controller_tag(ctl, tagParent)
 
     def addToGroup(self, objects, names=["hidden"], parentGrp=None):
         """Add the object in a collection for later group creation.
