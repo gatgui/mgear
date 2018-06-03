@@ -7,7 +7,8 @@ import pymel.core as pm
 
 import mgear
 
-from mgear.maya import synoptic, skin, simpleRig, rigbits, attribute, shifter
+from mgear.maya import synoptic, skin, rigbits, attribute, shifter
+from mgear.maya.simpleRig import simpleRigTool, simpleRig_legacy
 from mgear.maya.animbits import softTweaks
 from mgear.maya.rigbits import (
     postSpring,
@@ -16,7 +17,8 @@ from mgear.maya.rigbits import (
     utils,
     channelWrangler,
     eye_rigger,
-    lips_rigger
+    lips_rigger,
+    rbf_manager_ui
 )
 
 from mGear_guidesTemplates import (
@@ -76,15 +78,20 @@ def createMenu():
 
     # Simple rig
     pm.menuItem(parent="mGear", subMenu=True, tearOff=True, label="Simple Rig")
+    pm.menuItem(label="Simple Rig Tool", command=simpleRigTool.openSimpleRigUI)
+    pm.menuItem(divider=True)
+    pm.menuItem(subMenu=True, tearOff=True, label="simpleRig Legacy")
     pm.menuItem(label="Simple Rig Generate",
-                command=partial(simpleRig.simpleRig, "rig", False))
+                command=partial(simpleRig_legacy.simpleRig, "rig", False))
     pm.menuItem(divider=True)
-    pm.menuItem(label="Create Root", command=simpleRig.createRoot)
+    pm.menuItem(label="Create Root", command=simpleRig_legacy.createRoot)
     pm.menuItem(divider=True)
-    pm.menuItem(label="Set User Pivot", command=simpleRig.setUserRigPivot)
-    pm.menuItem(label="Add To User Pivot", command=simpleRig.addToUserPivot)
+    pm.menuItem(label="Set User Pivot",
+                command=simpleRig_legacy.setUserRigPivot)
+    pm.menuItem(label="Add To User Pivot",
+                command=simpleRig_legacy.addToUserPivot)
     pm.menuItem(label="Select Objects In User Pivot",
-                command=simpleRig.selectObjectInUserRootPivot)
+                command=simpleRig_legacy.selectObjectInUserRootPivot)
     pm.setParent(mGearM, menu=True)
     pm.menuItem(divider=True)
 
@@ -151,6 +158,8 @@ def createMenu():
     pm.menuItem(label="Duplicate symmetrical",
                 command=rigbits.duplicateSym)
     pm.menuItem(divider=True)
+    pm.menuItem(label="RBF Manager",
+                command=rbf_manager_ui.show)
     pm.menuItem(label="Space Jumper",
                 command=rigbits.spaceJump)
     pm.menuItem(label="Interpolated Transform",
@@ -229,24 +238,14 @@ def createMenu():
     pm.setParent(mGearM, menu=True)
     pm.menuItem(divider=True)
     pm.menuItem(parent="mGear", subMenu=True, tearOff=True, label="Help")
-    pm.menuItem(label="Documentation",
+    pm.menuItem(label="Web",
                 command=partial(
                     openFile,
-                    "https://miquelcampos.github.io/mgear/"))
-    pm.menuItem(label="Release Log",
+                    "http://www.mgear-framework.com/"))
+    pm.menuItem(label="Forum",
                 command=partial(
                     openFile,
-                    "https://miquelcampos.github.io/mgear/releaseLog.html"))
-    pm.menuItem(divider=True)
-    pm.menuItem(label="User Group",
-                command=partial(
-                    openFile,
-                    "https://groups.google.com/forum/#!forum/mgearusergroup"))
-    pm.menuItem(divider=True)
-    pm.menuItem(label="GitHub",
-                command=partial(
-                    openFile,
-                    "https://github.com/miquelcampos/mgear"))
+                    "http://forum.mgear-framework.com/"))
     pm.menuItem(divider=True)
     pm.menuItem(label="About", command=mgear.maya.aboutMgear)
 

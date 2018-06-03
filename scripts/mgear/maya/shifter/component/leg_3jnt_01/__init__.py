@@ -259,18 +259,22 @@ class Component(component.Main):
 
         # foot IK
 
+        # "z-x",
+        t_align = transform.getTransformLookingAt(self.guide.apos[3],
+                                                  self.guide.apos[4],
+                                                  self.normal,
+                                                  "zx",
+                                                  False)
+
         if self.settings["ikOri"]:
-            t = transform.getTransformLookingAt(self.guide.pos["foot"],
-                                                self.guide.pos["eff"],
-                                                self.x_axis,
-                                                "zx",
-                                                False)
+            t = transform.getTransformFromPos(self.guide.pos["foot"])
+            # t = transform.getTransformLookingAt(self.guide.pos["foot"],
+            #                                     self.guide.pos["eff"],
+            #                                     self.x_axis,
+            #                                     "zx",
+            #                                     False)
         else:
-            t = transform.getTransformLookingAt(self.guide.apos[3],
-                                                self.guide.apos[4],
-                                                self.normal,
-                                                "z-x",
-                                                False)
+            t = t_align
 
         self.ik_cns = primitive.addTransform(
             self.root_ctl, self.getName("ik_cns"), t)
@@ -302,15 +306,15 @@ class Component(component.Main):
 
         # 2 bones ik layer
         self.ik2b_ikCtl_ref = primitive.addTransform(
-            self.ik_ctl, self.getName("ik2B_A_ref"), t)
+            self.ik_ctl, self.getName("ik2B_A_ref"), t_align)
         self.ik2b_bone_ref = primitive.addTransform(
-            self.chain3bones[3], self.getName("ik2B_B_ref"), t)
+            self.chain3bones[3], self.getName("ik2B_B_ref"), t_align)
         self.ik2b_blend = primitive.addTransform(
-            self.ik_ctl, self.getName("ik2B_blend"), t)
+            self.ik_ctl, self.getName("ik2B_blend"), t_align)
 
         self.roll_ctl = self.addCtl(self.ik2b_blend,
                                     "roll_ctl",
-                                    t,
+                                    t_align,
                                     self.color_ik,
                                     "crossarrow",
                                     w=self.length2 * .5 * self.n_factor,
@@ -475,6 +479,52 @@ class Component(component.Main):
             transform.getTransform(self.legBones[3]))
         self.jnt_pos.append([self.end_ref, 'end'])
 
+        # match IK FK references
+        self.match_fk0_off = primitive.addTransform(
+            self.root,
+            self.getName("matchFk0_npo"),
+            transform.getTransform(self.fk_ctl[1]))
+
+        self.match_fk0 = primitive.addTransform(
+            self.match_fk0_off,
+            self.getName("fk0_mth"),
+            transform.getTransform(self.fk_ctl[0]))
+
+        self.match_fk1_off = primitive.addTransform(
+            self.root,
+            self.getName("matchFk1_npo"),
+            transform.getTransform(self.fk_ctl[2]))
+
+        self.match_fk1 = primitive.addTransform(
+            self.match_fk1_off,
+            self.getName("fk1_mth"),
+            transform.getTransform(self.fk_ctl[1]))
+
+        self.match_fk2_off = primitive.addTransform(
+            self.root,
+            self.getName("matchFk2_npo"),
+            transform.getTransform(self.fk_ctl[3]))
+
+        self.match_fk2 = primitive.addTransform(
+            self.match_fk2_off,
+            self.getName("fk2_mth"),
+            transform.getTransform(self.fk_ctl[2]))
+
+        self.match_fk3 = primitive.addTransform(
+            self.ik_ctl,
+            self.getName("fk3_mth"),
+            transform.getTransform(self.fk_ctl[3]))
+
+        self.match_ik = primitive.addTransform(
+            self.fk3_ctl,
+            self.getName("ik_mth"),
+            transform.getTransform(self.ik_ctl))
+
+        self.match_ikUpv = primitive.addTransform(
+            self.fk0_ctl,
+            self.getName("upv_mth"),
+            transform.getTransform(self.upv_ctl))
+
         # add visual reference
         self.line_ref = icon.connection_display_curve(
             self.getName("visalRef"), [self.upv_ctl, self.knee_ctl])
@@ -539,7 +589,9 @@ class Component(component.Main):
                                                         ref_names)
         if self.validProxyChannels:
             attribute.addProxyAttribute(
-                [self.blend_att, self.roundness_att],
+                [self.blend_att,
+                 self.roundnessAnkle_att,
+                 self.roundnessKnee_att],
                 [self.fk0_ctl,
                     self.fk1_ctl,
                     self.fk2_ctl,
@@ -1018,6 +1070,11 @@ class Component(component.Main):
 
         # setup leg o_node scale compensate
         pm.connectAttr(self.rig.global_ctl + ".scale", self.setup + ".scale")
+
+        # match IK/FK ref
+        pm.parentConstraint(self.legBones[0], self.match_fk0_off, mo=True)
+        pm.parentConstraint(self.legBones[1], self.match_fk1_off, mo=True)
+        pm.parentConstraint(self.legBones[2], self.match_fk2_off, mo=True)
 
         return
 

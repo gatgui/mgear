@@ -1,5 +1,5 @@
 .idea
-
+.vscode/
 
 *.py[cod]
 
@@ -47,6 +47,7 @@ excons.cache
 /docs/source/generated/
 /mgear.env.tmp
 /mgear.config
+/mgear.status
 /mGear_cmd.cmd
 
 

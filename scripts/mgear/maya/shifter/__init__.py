@@ -13,7 +13,7 @@ import mgear
 import mgear.maya.utils
 from . import guide, component
 
-from mgear.maya import primitive, attribute, skin, dag, icon
+from mgear.maya import primitive, attribute, skin, dag, icon, node
 
 
 # check if we have loaded the necessary plugins
@@ -118,7 +118,11 @@ class Rig(object):
                 mgear.sev_error)
             return
 
-        self.preCustomStep(selection)
+        # check if is partial build or full guide build
+        ismodel = False
+        if selection[0].hasAttr("ismodel"):
+            self.preCustomStep(selection)
+            ismodel = True
 
         if not self.stopBuild:
             mgear.log("\n" + "= GUIDE VALIDATION " + "=" * 46)
@@ -130,10 +134,16 @@ class Rig(object):
             # Build
             mgear.log("\n" + "= BUILDING RIG " + "=" * 46)
             self.build()
-            self.postCustomStep()
+            if ismodel:
+                self.postCustomStep()
 
             endTime = datetime.datetime.now()
             finalTime = endTime - startTime
+            pm.flushUndo()
+            pm.displayInfo("Undo history have been flushed to avoid "
+                           "possible crash after rig is build. \n"
+                           "More info: "
+                           "https://github.com/miquelcampos/mgear/issues/72")
             mgear.log("\n" + "= SHIFTER BUILD RIG DONE {} [ {} ] {}".format(
                 "=" * 16,
                 finalTime,
@@ -164,6 +174,8 @@ class Rig(object):
         if customSteps:
             for step in customSteps:
                 if not self.stopBuild:
+                    if step.startswith("*"):
+                        continue
                     self.stopBuild = guide.helperSlots.runStep(
                         step.split("|")[-1][1:], self.customStepDic)
                 else:
@@ -199,28 +211,6 @@ class Rig(object):
         self.model = primitive.addTransformFromPos(
             None, self.options["rig_name"])
         attribute.lockAttribute(self.model)
-
-        # ------------------------- -------------------------
-        # Global Ctl
-        if self.options["worldCtl"]:
-            self.global_ctl = self.addCtl(self.model,
-                                          "world_ctl",
-                                          datatypes.Matrix(),
-                                          self.options["C_color_fk"],
-                                          "circle", w=10)
-        else:
-            self.global_ctl = self.addCtl(self.model,
-                                          "global_C0_ctl",
-                                          datatypes.Matrix(),
-                                          self.options["C_color_fk"],
-                                          "crossarrow",
-                                          w=10)
-        attribute.setRotOrder(self.global_ctl, "ZXY")
-
-        # --------------------------------------------------
-        # Setup in world Space
-        self.setupWS = primitive.addTransformFromPos(self.model, "setup")
-        attribute.lockAttribute(self.setupWS)
 
         # --------------------------------------------------
         # INFOS
@@ -265,6 +255,24 @@ class Rig(object):
 
         self.rigGroups = self.model.addAttr("rigGroups", at='message', m=1)
         self.rigPoses = self.model.addAttr("rigPoses", at='message', m=1)
+        self.rigCtlTags = self.model.addAttr("rigCtlTags", at='message', m=1)
+
+        # ------------------------- -------------------------
+        # Global Ctl
+        if self.options["worldCtl"]:
+            self.global_ctl = self.addCtl(self.model,
+                                          "world_ctl",
+                                          datatypes.Matrix(),
+                                          self.options["C_color_fk"],
+                                          "circle", w=10)
+        else:
+            self.global_ctl = self.addCtl(self.model,
+                                          "global_C0_ctl",
+                                          datatypes.Matrix(),
+                                          self.options["C_color_fk"],
+                                          "crossarrow",
+                                          w=10)
+        attribute.setRotOrder(self.global_ctl, "ZXY")
 
         # Connect global visibility
         pm.connectAttr(self.ctlVis_att, self.global_ctl.attr("visibility"))
@@ -272,6 +280,10 @@ class Rig(object):
                        self.global_ctl.attr("hideOnPlayback"))
         attribute.lockAttribute(self.global_ctl, ['v'])
 
+        # --------------------------------------------------
+        # Setup in world Space
+        self.setupWS = primitive.addTransformFromPos(self.model, "setup")
+        attribute.lockAttribute(self.setupWS)
         # --------------------------------------------------
         # Basic set of null
         if self.options["joint_rig"]:
@@ -364,9 +376,9 @@ class Rig(object):
         # pprint(controls_grp, stream=None, indent=1, width=100)
         ctl_master_grp = pm.PyNode(self.model.name() + "_controllers_grp")
         pm.select(ctl_master_grp, replace=True)
-        node = pm.dagPose(save=True, selection=True)
-        pm.connectAttr(node.message, self.model.rigPoses[0])
-        print node
+        dag_node = pm.dagPose(save=True, selection=True)
+        pm.connectAttr(dag_node.message, self.model.rigPoses[0])
+        print dag_node
 
         # Bind skin re-apply
         if self.options["importSkin"]:
@@ -418,6 +430,7 @@ class Rig(object):
         # set controller tag
         if versions.current() >= 201650:
             pm.controller(ctl)
+            self.add_controller_tag(ctl, None)
 
         return ctl
 
@@ -462,6 +475,13 @@ class Rig(object):
             if pg not in self.subGroups.keys():
                 self.subGroups[pg] = []
             self.subGroups[pg].extend(subGroups)
+
+    def add_controller_tag(self, ctl, tagParent):
+        ctt = node.add_controller_tag(ctl, tagParent)
+        if ctt:
+            ni = attribute.get_next_available_index(self.model.rigCtlTags)
+            pm.connectAttr(ctt.message,
+                           self.model.attr("rigCtlTags[{}]".format(str(ni))))
 
     def getLocalName(self, guideName):
         """This function return the local name, cutting the Maya fullname

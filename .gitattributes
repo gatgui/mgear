@@ -14,9 +14,6 @@
 *.mtd          text eol=lf
 *.ass          text eol=lf
 
-# QT Designer files
-*.ui 	       text eol=lf
-
 # Structured files
 *.xml          text eol=lf
 *.json         text eol=lf
@@ -33,6 +30,9 @@
 
 # Maya MEL source files
 *.mel          text eol=lf
+
+# Maya Ascii scene files
+*.ma           text eol=lf
 
 # Environment files
 *.env          text eol=lf
@@ -78,5 +78,8 @@ CMakeLists.txt text eol=lf
 # Other known text files
 *.desc         text eol=lf
 *.txt          text eol=lf
+*.in           text eol=lf
+Dockerfile     text eol=lf
 LICENSE        text eol=lf
-
+buildAll       text eol=lf
+mGear.mod      text eol=lf

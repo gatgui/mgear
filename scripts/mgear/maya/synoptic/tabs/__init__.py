@@ -84,8 +84,8 @@ class MainSynopticTab(QtWidgets.QDialog):
         # type: () -> None
         # script job callback
         # ptr = long(QtCompat.getCppPointer(self)[0])
-        # ptr = long(QtCompat.getCppPointer(self))
-        ptr = QtCompat.getCppPointer(self)
+        # ptr = QtCompat.getCppPointer(self)
+        ptr = long(QtCompat.getCppPointer(self))
 
         gui = OpenMayaUI.MQtUtil.fullName(ptr)
         self.selJob = pm.scriptJob(e=("SelectionChanged",

@@ -1,9 +1,9 @@
 [submodule "excons"]
 	path = excons
-	url = https://github.com/gatgui/excons.git
+	url = git://github.com/gatgui/excons.git
 [submodule "cvwrap"]
 	path = cvwrap
-	url = https://github.com/miquelcampos/cvwrap.git
+	url = git://github.com/gatgui/cvwrap.git
 [submodule "Qtdotpy"]
 	path = Qtdotpy
-	url = https://github.com/mottosso/Qt.py
+	url = git://github.com/mottosso/Qt.py
