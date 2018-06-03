@@ -78,7 +78,7 @@ def createMenu():
 
     # Simple rig
     pm.menuItem(parent="mGear", subMenu=True, tearOff=True, label="Simple Rig")
-    pm.menuItem(label="Simple Rig Tool", command=simpleRigTool.open)
+    pm.menuItem(label="Simple Rig Tool", command=simpleRigTool.openSimpleRigUI)
     pm.menuItem(divider=True)
     pm.menuItem(subMenu=True, tearOff=True, label="simpleRig Legacy")
     pm.menuItem(label="Simple Rig Generate",
@@ -238,24 +238,14 @@ def createMenu():
     pm.setParent(mGearM, menu=True)
     pm.menuItem(divider=True)
     pm.menuItem(parent="mGear", subMenu=True, tearOff=True, label="Help")
-    pm.menuItem(label="Documentation",
+    pm.menuItem(label="Web",
                 command=partial(
                     openFile,
-                    "https://miquelcampos.github.io/mgear/"))
-    pm.menuItem(label="Release Log",
+                    "http://www.mgear-framework.com/"))
+    pm.menuItem(label="Forum",
                 command=partial(
                     openFile,
-                    "https://miquelcampos.github.io/mgear/releaseLog.html"))
-    pm.menuItem(divider=True)
-    pm.menuItem(label="User Group",
-                command=partial(
-                    openFile,
-                    "https://groups.google.com/forum/#!forum/mgearusergroup"))
-    pm.menuItem(divider=True)
-    pm.menuItem(label="GitHub",
-                command=partial(
-                    openFile,
-                    "https://github.com/miquelcampos/mgear"))
+                    "http://forum.mgear-framework.com/"))
     pm.menuItem(divider=True)
     pm.menuItem(label="About", command=mgear.maya.aboutMgear)
 
